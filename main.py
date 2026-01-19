@@ -11,13 +11,9 @@ def news():
     articles = parse_articles(xml_list)
 
     interests = [
-        "Python",
-        "геймдев",
-        "паттерн"
-        # "игры"
-        # "алготрейдинг",
-        # "бэктестинг",
-        # "pandas"
+        "математика"
+        # , "php"
+        # , "logs"
     ]
 
     ranked = rank_articles_nn(

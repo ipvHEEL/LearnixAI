@@ -28,4 +28,4 @@ def rank_articles_nn(
 
     ranked.sort(key=lambda x: x["relevance_score"], reverse=True)
 
-    return ranked[:top_k]
+    return ranked
