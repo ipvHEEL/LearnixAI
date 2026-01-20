@@ -1,20 +1,25 @@
 from fastapi import FastAPI
-from service.api_load import load_all_rss, parse_articles
-from service.neural_ranker import rank_articles_nn
+from service.data.api_load import load_all_rss, parse_articles
+from service.data.neural_ranker import rank_articles_nn
+from service.user.user import User
+from pydantic import BaseModel
+from service.auth.auth_service import AuthService
 
 app = FastAPI()
+auth_service = AuthService()    
+
+class LoginRequest(BaseModel):
+    login: str
+    password: str
 
 
 @app.get("/news")
 def news():
+    user = User(1, ["математика", "алгебра", "геометрия"])
     xml_list = load_all_rss()
     articles = parse_articles(xml_list)
 
-    interests = [
-        "математика"
-        # , "php"
-        # , "logs"
-    ]
+    interests = user.interests
 
     ranked = rank_articles_nn(
         articles=articles,
@@ -28,3 +33,10 @@ def news():
         "total_articles": len(articles),
         "articles": ranked
     }
+
+@app.post("/login")
+def login(data: LoginRequest):
+    user = auth_service.authenticate(data.login, data.password)
+    if user:
+        return user
+    return None

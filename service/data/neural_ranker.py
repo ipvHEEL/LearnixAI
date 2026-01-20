@@ -1,3 +1,4 @@
+#service/neural_ranker.py
 from typing import List, Dict
 import torch
 from sentence_transformers import SentenceTransformer, util
@@ -28,4 +29,4 @@ def rank_articles_nn(
 
     ranked.sort(key=lambda x: x["relevance_score"], reverse=True)
 
-    return ranked
+    return ranked   
