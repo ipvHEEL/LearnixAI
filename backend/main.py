@@ -4,9 +4,25 @@ from service.data.neural_ranker import rank_articles_nn
 from service.user.user import User
 from pydantic import BaseModel
 from service.auth.auth_service import AuthService
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 auth_service = AuthService()    
+
+
+origins = [
+    "http://localhost:3000",  
+    "http://127.0.0.1:3000"
+]
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,        
+    allow_credentials=True,
+    allow_methods=["*"],          
+    allow_headers=["*"],          
+)
 
 class LoginRequest(BaseModel):
     login: str
