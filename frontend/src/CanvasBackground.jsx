@@ -26,7 +26,7 @@ export default function CanvasBackground() {
       autoPushPop: true
     };
 
-    const colorArray = [127, 32, 255, 255];
+    const colorArray = [150, 10, 255, 255];
 
     const dirs = [
       [0, 0],

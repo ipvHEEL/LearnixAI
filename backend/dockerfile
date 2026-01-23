@@ -2,9 +2,7 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Системные зависимости
-# Обновляем pip
-RUN pip install --upgrade pip
+ 
 
 # Копируем requirements.txt
 COPY requirements.txt .
@@ -12,14 +10,10 @@ COPY requirements.txt .
 # Обновляем pip
 RUN pip install --upgrade pip
 
-# Устанавливаем torch напрямую по URL
-RUN pip install https://download.pytorch.org/whl/cpu/torch-2.1.1%2Bcpu-cp311-cp311-linux_x86_64.whl
-
-# Устанавливаем остальные зависимости (убедитесь, что torch НЕ указан в requirements.txt)
 RUN pip install -r requirements.txt
 
 # Копируем исходный код
 COPY . .
 
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["fastapi", "dev", "main.py", "--port", "8000"]

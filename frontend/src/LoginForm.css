@@ -7,7 +7,7 @@
 
     body {
       font-family: 'Open Sans', sans-serif;
-      background-color: #222;
+      background-color: #181818;
     }
 
     .container {
@@ -22,7 +22,7 @@
       margin: 0 auto;
       padding: 50px;
       background: linear-gradient(145deg, #2c2c2c, #383838);
-      background-color: #333;
+      background-color: #333333;
       border-radius: 10px;
       box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
       color: #fff;
