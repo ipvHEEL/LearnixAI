@@ -1,4 +1,3 @@
-import logo from './logo.svg';
 import './App.css';
 import LoginForm from './LoginForm';
 import CanvasBackground from './CanvasBackground';

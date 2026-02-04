@@ -19,34 +19,38 @@ function LoginForm() {
   };
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
-  setError('');
-  setLoading(true);
+    e.preventDefault();
+    setError('');
+    setLoading(true);
 
-  try {
-    const payload = { login: form.username, password: form.password };
+    try {
+      const payload = {
+        login: form.username,
+        password: form.password,
+        ...(isLogin ? {} : { email: form.email })
+      };
 
-    const res = await fetch("http://127.0.0.1:8000/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
+      const res = await fetch(`http://127.0.0.1:8000/${isLogin ? 'login' : 'signup'}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
 
-    const data = await res.json();
+      const data = await res.json();
 
-    if (!res.ok || !data) {
-      setError('Ошибка авторизации');
-    } else {
-      localStorage.setItem('authToken', data.token); // если сервер возвращает токен
-      window.location.href = '/dashboard';
+      if (!res.ok || !data) {
+        setError(isLogin ? 'Ошибка авторизации' : 'Ошибка регистрации');
+      } else {
+        localStorage.setItem('authToken', data.token);
+        window.location.href = '/dashboard';
+      }
+    } catch (err) {
+      console.error(err);
+      setError('Сервер недоступен');
+    } finally {
+      setLoading(false);
     }
-  } catch (err) {
-    console.error(err);
-    setError('Сервер недоступен');
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
 
   return (

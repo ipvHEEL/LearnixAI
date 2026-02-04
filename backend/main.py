@@ -28,6 +28,10 @@ class LoginRequest(BaseModel):
     login: str
     password: str
 
+class SignupRequest(BaseModel):
+    login: str
+    email: str
+    password: str
 
 @app.get("/news")
 def news():
@@ -53,6 +57,13 @@ def news():
 @app.post("/login")
 def login(data: LoginRequest):
     user = auth_service.authenticate(data.login, data.password)
+    if user:
+        return user
+    return None
+
+@app.post("/signup")
+def signup(data: SignupRequest):
+    user = auth_service.register(data.login, data.email, data.password)
     if user:
         return user
     return None
