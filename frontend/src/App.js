@@ -1,13 +1,15 @@
-import logo from './logo.svg';
 import './App.css';
 import LoginForm from './LoginForm';
 import CanvasBackground from './CanvasBackground';
+import NewsFeed from './NewsFeed';
 
 function App() {
+  const isDashboardPage = window.location.pathname === '/dashboard';
+
   return (
     <>
       <CanvasBackground />
-      <LoginForm />
+      {isDashboardPage ? <NewsFeed /> : <LoginForm />}
     </>
   );
 }
