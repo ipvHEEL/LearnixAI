@@ -44,6 +44,18 @@ const sampleNews = [
   }
 ];
 
+const menuItems = [
+  'Моя страница',
+  'Новости',
+  'Сообщения',
+  'Друзья',
+  'Сообщества',
+  'Фотографии',
+  'Музыка'
+];
+
+const rightMenuItems = ['Новости', 'Фотографии', 'Подкасты', 'Рекомендации', 'Поиск'];
+
 function NewsFeed() {
   const [likes, setLikes] = useState({});
   const [saved, setSaved] = useState({});
@@ -63,62 +75,92 @@ function NewsFeed() {
 
   return (
     <main className="news-feed-page">
-      <header className="news-feed-header">
-        <h1>Лента новостей</h1>
-        <p>Свайпай вверх/вниз или прокручивай колесом мыши</p>
-        <span className="news-feed-counter">Реакций: {totalLikes}</span>
-      </header>
+      <div className="news-layout">
+        <aside className="left-sidebar" aria-label="Основная навигация">
+          <ul>
+            {menuItems.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </aside>
 
-      <section className="news-feed" aria-label="Лента новостей в стиле TikTok">
-        {sampleNews.map((news) => {
-          const currentLike = likes[news.id] ?? 0;
-          const isSaved = Boolean(saved[news.id]);
+        <section className="news-center-column">
+          <header className="news-feed-header">
+            <h1>Лента новостей</h1>
+            <p>Свайпай вверх/вниз или прокручивай колесом мыши</p>
+            <span className="news-feed-counter">Реакций: {totalLikes}</span>
+          </header>
 
-          return (
-            <article
-              key={news.id}
-              className="news-card"
-              style={{ backgroundImage: news.color }}
-            >
-              <div className="news-card-overlay" />
-              <div className="news-card-content">
-                <span className="news-category">{news.category}</span>
-                <h2>{news.title}</h2>
-                <p>{news.summary}</p>
+          <section className="news-feed" aria-label="Лента новостей в стиле TikTok">
+            {sampleNews.map((news) => {
+              const currentLike = likes[news.id] ?? 0;
+              const isSaved = Boolean(saved[news.id]);
 
-                <div className="news-meta">
-                  <span>{news.source}</span>
-                  <span>{news.time}</span>
-                </div>
-              </div>
-
-              <aside className="news-actions" aria-label="Действия с новостью">
-                <button
-                  className={currentLike === 1 ? 'active' : ''}
-                  onClick={() => updateLike(news.id, currentLike === 1 ? 0 : 1)}
-                  aria-label="Нравится"
+              return (
+                <article
+                  key={news.id}
+                  className="news-card"
+                  style={{ backgroundImage: news.color }}
                 >
-                  👍
-                </button>
-                <button
-                  className={currentLike === -1 ? 'active' : ''}
-                  onClick={() => updateLike(news.id, currentLike === -1 ? 0 : -1)}
-                  aria-label="Не нравится"
-                >
-                  👎
-                </button>
-                <button
-                  className={isSaved ? 'active' : ''}
-                  onClick={() => toggleSave(news.id)}
-                  aria-label="Сохранить"
-                >
-                  🔖
-                </button>
-              </aside>
-            </article>
-          );
-        })}
-      </section>
+                  <div className="news-card-overlay" />
+                  <div className="news-card-content">
+                    <span className="news-category">{news.category}</span>
+                    <h2>{news.title}</h2>
+                    <p>{news.summary}</p>
+
+                    <div className="news-meta">
+                      <span>{news.source}</span>
+                      <span>{news.time}</span>
+                    </div>
+                  </div>
+
+                  <aside className="news-actions" aria-label="Действия с новостью">
+                    <button
+                      className={currentLike === 1 ? 'active' : ''}
+                      onClick={() => updateLike(news.id, currentLike === 1 ? 0 : 1)}
+                      aria-label="Нравится"
+                    >
+                      👍
+                    </button>
+                    <button
+                      className={currentLike === -1 ? 'active' : ''}
+                      onClick={() => updateLike(news.id, currentLike === -1 ? 0 : -1)}
+                      aria-label="Не нравится"
+                    >
+                      👎
+                    </button>
+                    <button
+                      className={isSaved ? 'active' : ''}
+                      onClick={() => toggleSave(news.id)}
+                      aria-label="Сохранить"
+                    >
+                      🔖
+                    </button>
+                  </aside>
+                </article>
+              );
+            })}
+          </section>
+        </section>
+
+        <aside className="right-sidebar" aria-label="Управление профилем">
+          <div className="right-card">
+            <h3>Разделы</h3>
+            <ul>
+              {rightMenuItems.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="right-card profile-switch">
+            <span>Сначала интересные</span>
+            <button type="button" aria-label="Переключить сначала интересные">
+              ○
+            </button>
+          </div>
+        </aside>
+      </div>
     </main>
   );
 }
