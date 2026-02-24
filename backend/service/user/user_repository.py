@@ -39,18 +39,22 @@ class UserRepository:
         if not self.postgres_dsn or psycopg is None:
             return
 
-        with psycopg.connect(self.postgres_dsn) as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    CREATE TABLE IF NOT EXISTS users (
-                        user_id INTEGER PRIMARY KEY,
-                        user_name TEXT NOT NULL,
-                        interests JSONB NOT NULL DEFAULT '[]'::jsonb
+        try:
+            with psycopg.connect(self.postgres_dsn) as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        CREATE TABLE IF NOT EXISTS users (
+                            user_id INTEGER PRIMARY KEY,
+                            user_name TEXT NOT NULL,
+                            interests JSONB NOT NULL DEFAULT '[]'::jsonb
+                        )
+                        """
                     )
-                    """
-                )
-            conn.commit()
+                conn.commit()
+        except Exception:
+            # Postgres is optional, startup must not fail if DB is unavailable.
+            return
 
     def save_user(self, user: User) -> None:
         data = {
@@ -60,54 +64,69 @@ class UserRepository:
         }
 
         if self.redis_client:
-            self.redis_client.set(f"user:{user.user_id}", json.dumps(data, ensure_ascii=False))
+            try:
+                self.redis_client.set(f"user:{user.user_id}", json.dumps(data, ensure_ascii=False))
+            except Exception:
+                pass
 
         if self.postgres_dsn and psycopg is not None:
-            with psycopg.connect(self.postgres_dsn) as conn:
-                with conn.cursor() as cur:
-                    cur.execute(
-                        """
-                        INSERT INTO users (user_id, user_name, interests)
-                        VALUES (%s, %s, %s)
-                        ON CONFLICT (user_id) DO UPDATE
-                        SET user_name = EXCLUDED.user_name,
-                            interests = EXCLUDED.interests
-                        """,
-                        (user.user_id, user.user_name, json.dumps(user.interests, ensure_ascii=False)),
-                    )
-                conn.commit()
+            try:
+                with psycopg.connect(self.postgres_dsn) as conn:
+                    with conn.cursor() as cur:
+                        cur.execute(
+                            """
+                            INSERT INTO users (user_id, user_name, interests)
+                            VALUES (%s, %s, %s)
+                            ON CONFLICT (user_id) DO UPDATE
+                            SET user_name = EXCLUDED.user_name,
+                                interests = EXCLUDED.interests
+                            """,
+                            (user.user_id, user.user_name, json.dumps(user.interests, ensure_ascii=False)),
+                        )
+                    conn.commit()
+            except Exception:
+                pass
 
     def get_user(self, user_id: int) -> Optional[User]:
         if self.redis_client:
-            cached = self.redis_client.get(f"user:{user_id}")
-            if cached:
-                data = json.loads(cached)
-                return User(data["user_id"], data.get("interests", []), data["user_name"])
+            try:
+                cached = self.redis_client.get(f"user:{user_id}")
+                if cached:
+                    data = json.loads(cached)
+                    return User(data["user_id"], data.get("interests", []), data["user_name"])
+            except Exception:
+                pass
 
         if self.postgres_dsn and psycopg is not None:
-            with psycopg.connect(self.postgres_dsn) as conn:
-                with conn.cursor() as cur:
-                    cur.execute(
-                        "SELECT user_id, user_name, interests FROM users WHERE user_id = %s",
-                        (user_id,),
-                    )
-                    row = cur.fetchone()
+            try:
+                with psycopg.connect(self.postgres_dsn) as conn:
+                    with conn.cursor() as cur:
+                        cur.execute(
+                            "SELECT user_id, user_name, interests FROM users WHERE user_id = %s",
+                            (user_id,),
+                        )
+                        row = cur.fetchone()
 
-            if row:
-                interests = row[2] if isinstance(row[2], list) else json.loads(row[2])
-                user = User(user_id=row[0], user_name=row[1], interests=interests)
-                if self.redis_client:
-                    self.redis_client.set(
-                        f"user:{user.user_id}",
-                        json.dumps(
-                            {
-                                "user_id": user.user_id,
-                                "user_name": user.user_name,
-                                "interests": user.interests,
-                            },
-                            ensure_ascii=False,
-                        ),
-                    )
-                return user
+                if row:
+                    interests = row[2] if isinstance(row[2], list) else json.loads(row[2])
+                    user = User(user_id=row[0], user_name=row[1], interests=interests)
+                    if self.redis_client:
+                        try:
+                            self.redis_client.set(
+                                f"user:{user.user_id}",
+                                json.dumps(
+                                    {
+                                        "user_id": user.user_id,
+                                        "user_name": user.user_name,
+                                        "interests": user.interests,
+                                    },
+                                    ensure_ascii=False,
+                                ),
+                            )
+                        except Exception:
+                            pass
+                    return user
+            except Exception:
+                pass
 
         return None
