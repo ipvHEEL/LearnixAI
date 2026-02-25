@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   backend:
     build: ./backend
@@ -9,8 +7,44 @@ services:
       - ./backend:/app
     environment:
       - PYTHONUNBUFFERED=1
+      - REDIS_URL=redis://redis:6379/0
+      - POSTGRES_DSN=postgresql://learnix:learnix@postgres:5432/learnix
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
 
   frontend:
     build: ./frontend
     ports:
       - "3000:80"
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  postgres:
+    image: postgres:16-alpine
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U learnix -d learnix"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    environment:
+      - POSTGRES_USER=learnix
+      - POSTGRES_PASSWORD=learnix
+      - POSTGRES_DB=learnix
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+
+volumes:
+  pg_data:
