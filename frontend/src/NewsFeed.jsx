@@ -1,70 +1,116 @@
-import { useMemo, useState } from 'react';
-import './NewsFeed.css';
-
-const sampleNews = [
-  {
-    id: 1,
-    category: 'Технологии',
-    title: 'Open-source AI ускоряет запуск EdTech-платформ',
-    summary:
-      'Новые библиотеки и локальные модели позволили стартапам запускать персонализированное обучение в 2 раза быстрее.',
-    source: 'Learnix Daily',
-    time: '2 часа назад',
-    color: 'linear-gradient(180deg, #7a2ef7 0%, #820f85 56%, #280020 100%)'
-  },
-  {
-    id: 2,
-    category: 'Образование',
-    title: 'Университеты внедряют микро-курсы в формате Shorts',
-    summary:
-      'Короткие 90-секундные видео повышают вовлеченность студентов и помогают повторять материал прямо в телефоне.',
-    source: 'EdFuture',
-    time: '4 часа назад',
-    color: 'linear-gradient(180deg, #304ffe 0%, #4f6fe7 45%, #060f2e 100%)'
-  },
-  {
-    id: 3,
-    category: 'Бизнес',
-    title: 'Компании увеличивают бюджет на внутреннее обучение сотрудников',
-    summary:
-      'Спрос на upskilling вырос после автоматизации рутинных задач. Лидируют программы по AI-грамотности.',
-    source: 'Market Pulse',
-    time: '6 часов назад',
-    color: 'linear-gradient(180deg, #b3471c 0%, #ad5f15 50%, #3a1a00 100%)'
-  },
-  {
-    id: 4,
-    category: 'Наука',
-    title: 'Исследователи доказали эффективность интервального повторения',
-    summary:
-      'Нейрокогнитивные тесты показали, что короткие циклы повторения увеличивают долгосрочное запоминание до 35%.',
-    source: 'NeuroLab',
-    time: '8 часов назад',
-    color: 'linear-gradient(180deg, #00a497 0%, #3d6fca 55%, #071028 100%)'
-  }
-];
+import { useEffect, useMemo, useState } from "react";
+import "./NewsFeed.css";
 
 const profileLinks = [
-  'Моя страница',
-  'Новости',
-  'Сообщения',
-  'Друзья',
-  'Сообщества',
-  'Фотографии',
-  'Музыка'
+  "Моя страница",
+  "Новости",
+  "Сообщения",
+  "Друзья",
+  "Сообщества",
+  "Фотографии",
+  "Музыка",
 ];
 
-const sectionLinks = ['Новости', 'Фотографии', 'Подкасты', 'Рекомендации', 'Поиск'];
+const sectionLinks = [
+  "Новости",
+  "Фотографии",
+  "Подкасты",
+  "Рекомендации",
+  "Поиск",
+];
+
+const cardGradients = [
+  "linear-gradient(180deg, #7a2ef7 0%, #820f85 56%, #280020 100%)",
+  "linear-gradient(180deg, #304ffe 0%, #4f6fe7 45%, #060f2e 100%)",
+  "linear-gradient(180deg, #b3471c 0%, #ad5f15 50%, #3a1a00 100%)",
+  "linear-gradient(180deg, #00a497 0%, #3d6fca 55%, #071028 100%)",
+  "linear-gradient(180deg, #d2198f 0%, #6d2ff7 55%, #14042f 100%)",
+];
+
+const decodeHtml = (text = "") =>
+  text
+    .replace(/&nbsp;/g, " ")
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, "&")
+    .replace(/<[^>]+>/g, "");
+
+const toNewsItem = (article, index) => {
+  let source = "Источник";
+
+  try {
+    source = new URL(article.url).hostname.replace("www.", "");
+  } catch (_error) {
+    source = "Источник";
+  }
+
+  return {
+    id: `${article.url ?? "article"}-${index}`,
+    category:
+      article.relevance_score >= 0.5 ? "Высокий интерес" : "Рекомендовано",
+    title: article.title ?? "Без названия",
+    summary: decodeHtml(article.description ?? article.full_text ?? ""),
+    source,
+    time: article.publishedAt
+      ? new Date(article.publishedAt).toLocaleString("ru-RU", {
+          day: "2-digit",
+          month: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "Без даты",
+    color: cardGradients[index % cardGradients.length],
+    relevanceScore: article.relevance_score ?? 0,
+    url: article.url,
+  };
+};
 
 function NewsFeed() {
   const [likes, setLikes] = useState({});
   const [saved, setSaved] = useState({});
   const [interestingFirst, setInterestingFirst] = useState(true);
+  const [news, setNews] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const fetchNews = async () => {
+      setLoading(true);
+      setError("");
+
+      try {
+        const userId = localStorage.getItem("userId") ?? "1";
+        const res = await fetch(`http://127.0.0.1:8000/news?user_id=${userId}`);
+
+        if (!res.ok) {
+          throw new Error("Ошибка загрузки новостей");
+        }
+
+        const data = await res.json();
+        const normalizedNews = (data.articles ?? []).map(toNewsItem);
+        setNews(normalizedNews);
+      } catch (fetchError) {
+        console.error(fetchError);
+        setError("Не удалось получить новости с сервера");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchNews();
+  }, []);
 
   const totalLikes = useMemo(
     () => Object.values(likes).reduce((acc, current) => acc + current, 0),
-    [likes]
+    [likes],
   );
+
+  const visibleNews = useMemo(() => {
+    if (!interestingFirst) {
+      return news;
+    }
+
+    return [...news].sort((a, b) => b.relevanceScore - a.relevanceScore);
+  }, [news, interestingFirst]);
 
   const updateLike = (id, value) => {
     setLikes((prev) => ({ ...prev, [id]: value }));
@@ -85,66 +131,90 @@ function NewsFeed() {
           ))}
         </aside>
 
-        <section className="news-main" aria-label="Лента новостей в стиле TikTok">
+        <section
+          className="news-main"
+          aria-label="Лента новостей в стиле TikTok"
+        >
           <header className="news-feed-header">
             <h1>Лента новостей</h1>
             <p>Свайпай вверх/вниз или прокручивай колесом мыши</p>
             <span className="news-feed-counter">Реакций: {totalLikes}</span>
           </header>
 
-          <div className="news-feed">
-            {sampleNews.map((news) => {
-              const currentLike = likes[news.id] ?? 0;
-              const isSaved = Boolean(saved[news.id]);
+          {loading && <p className="news-state">Загрузка новостей...</p>}
+          {error && <p className="news-state news-state-error">{error}</p>}
 
-              return (
-                <article
-                  key={news.id}
-                  className="news-card"
-                  style={{ backgroundImage: news.color }}
-                >
-                  <div className="news-card-overlay" />
-                  <div className="news-card-content">
-                    <span className="news-category">{news.category}</span>
-                    <h2>{news.title}</h2>
-                    <p>{news.summary}</p>
+          {!loading && !error && (
+            <div className="news-feed">
+              {visibleNews.map((newsItem) => {
+                const currentLike = likes[newsItem.id] ?? 0;
+                const isSaved = Boolean(saved[newsItem.id]);
 
-                    <div className="news-meta">
-                      <span>{news.source}</span>
-                      <span>{news.time}</span>
+                return (
+                  <article
+                    key={newsItem.id}
+                    className="news-card"
+                    style={{ backgroundImage: newsItem.color }}
+                  >
+                    <div className="news-card-overlay" />
+                    <div className="news-card-content">
+                      <span className="news-category">{newsItem.category}</span>
+                      <h2>{newsItem.title}</h2>
+                      <p>{newsItem.summary}</p>
+
+                      <div className="news-meta">
+                        <span>{newsItem.source}</span>
+                        <span>{newsItem.time}</span>
+                      </div>
+
+                      <a
+                        href={newsItem.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="news-link"
+                      >
+                        Читать оригинал
+                      </a>
                     </div>
-                  </div>
 
-                  <aside className="news-actions" aria-label="Действия с новостью">
-                    <button
-                      type="button"
-                      className={currentLike === 1 ? 'active' : ''}
-                      onClick={() => updateLike(news.id, currentLike === 1 ? 0 : 1)}
-                      aria-label="Нравится"
+                    <aside
+                      className="news-actions"
+                      aria-label="Действия с новостью"
                     >
-                      👍
-                    </button>
-                    <button
-                      type="button"
-                      className={currentLike === -1 ? 'active' : ''}
-                      onClick={() => updateLike(news.id, currentLike === -1 ? 0 : -1)}
-                      aria-label="Не нравится"
-                    >
-                      👎
-                    </button>
-                    <button
-                      type="button"
-                      className={isSaved ? 'active' : ''}
-                      onClick={() => toggleSave(news.id)}
-                      aria-label="Сохранить"
-                    >
-                      📌
-                    </button>
-                  </aside>
-                </article>
-              );
-            })}
-          </div>
+                      <button
+                        type="button"
+                        className={currentLike === 1 ? "active" : ""}
+                        onClick={() =>
+                          updateLike(newsItem.id, currentLike === 1 ? 0 : 1)
+                        }
+                        aria-label="Нравится"
+                      >
+                        👍
+                      </button>
+                      <button
+                        type="button"
+                        className={currentLike === -1 ? "active" : ""}
+                        onClick={() =>
+                          updateLike(newsItem.id, currentLike === -1 ? 0 : -1)
+                        }
+                        aria-label="Не нравится"
+                      >
+                        👎
+                      </button>
+                      <button
+                        type="button"
+                        className={isSaved ? "active" : ""}
+                        onClick={() => toggleSave(newsItem.id)}
+                        aria-label="Сохранить"
+                      >
+                        📌
+                      </button>
+                    </aside>
+                  </article>
+                );
+              })}
+            </div>
+          )}
         </section>
 
         <aside className="right-column" aria-label="Правая колонка разделов">
@@ -162,7 +232,7 @@ function NewsFeed() {
               <span>Сначала интересные</span>
               <button
                 type="button"
-                className={`switch ${interestingFirst ? 'active' : ''}`}
+                className={`switch ${interestingFirst ? "active" : ""}`}
                 onClick={() => setInterestingFirst((prev) => !prev)}
                 aria-pressed={interestingFirst}
               >
