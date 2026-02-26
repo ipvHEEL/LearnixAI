@@ -1,15 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import "./NewsFeed.css";
 
-const profileLinks = [
-  "Моя страница",
-  "Новости",
-  "Сообщения",
-  "Друзья",
-  "Сообщества",
-  "Фотографии",
-  "Музыка",
-];
+const profileLinks = ["Моя страница", "Новости", "Граф интересов", "Сообщения", "Друзья", "Сообщества", "Фотографии", "Музыка"];
 
 const sectionLinks = ["Новости", "Фотографии", "Подкасты", "Рекомендации", "Поиск"];
 
@@ -57,7 +49,163 @@ const toNewsItem = (article, index) => {
   };
 };
 
-function NewsFeed() {
+const graphNodesTemplate = [
+  { id: "ai", label: "AI", x: 50, y: 18 },
+  { id: "ml", label: "ML", x: 34, y: 33 },
+  { id: "data", label: "Data", x: 66, y: 33 },
+  { id: "startup", label: "Стартапы", x: 22, y: 50 },
+  { id: "design", label: "Дизайн", x: 42, y: 52 },
+  { id: "product", label: "Product", x: 58, y: 52 },
+  { id: "science", label: "Наука", x: 77, y: 50 },
+  { id: "robotics", label: "Робототехника", x: 36, y: 70 },
+  { id: "space", label: "Космос", x: 64, y: 70 },
+  { id: "future", label: "Будущее", x: 50, y: 84 },
+];
+
+const graphEdges = [
+  ["ai", "ml"],
+  ["ai", "data"],
+  ["ai", "design"],
+  ["ml", "startup"],
+  ["ml", "design"],
+  ["data", "product"],
+  ["data", "science"],
+  ["startup", "design"],
+  ["design", "product"],
+  ["product", "science"],
+  ["design", "robotics"],
+  ["product", "space"],
+  ["robotics", "future"],
+  ["space", "future"],
+  ["science", "space"],
+];
+
+const initialNodes = graphNodesTemplate.map((node) => ({ ...node }));
+
+function InterestsGraph({ onSelectionChange }) {
+  const containerRef = useRef(null);
+  const [nodes, setNodes] = useState(initialNodes);
+  const [selectedNodeId, setSelectedNodeId] = useState("");
+  const [draggedNodeId, setDraggedNodeId] = useState("");
+
+  const neighborsByNode = useMemo(() => {
+    const map = new Map();
+    graphEdges.forEach(([from, to]) => {
+      map.set(from, [...(map.get(from) ?? []), to]);
+      map.set(to, [...(map.get(to) ?? []), from]);
+    });
+    return map;
+  }, []);
+
+  const highlightedIds = useMemo(() => {
+    if (!selectedNodeId) {
+      return new Set();
+    }
+
+    return new Set([selectedNodeId, ...(neighborsByNode.get(selectedNodeId) ?? [])]);
+  }, [neighborsByNode, selectedNodeId]);
+
+  const selectedInterests = useMemo(() => {
+    if (!selectedNodeId) {
+      return [];
+    }
+
+    return nodes.filter((node) => highlightedIds.has(node.id)).map((node) => node.label);
+  }, [highlightedIds, nodes, selectedNodeId]);
+
+  useEffect(() => {
+    onSelectionChange(selectedInterests);
+  }, [onSelectionChange, selectedInterests]);
+
+  useEffect(() => {
+    if (!draggedNodeId) {
+      return undefined;
+    }
+
+    const handleMove = (event) => {
+      const container = containerRef.current;
+      if (!container) {
+        return;
+      }
+
+      const rect = container.getBoundingClientRect();
+      const x = ((event.clientX - rect.left) / rect.width) * 100;
+      const y = ((event.clientY - rect.top) / rect.height) * 100;
+      const clampedX = Math.min(95, Math.max(5, x));
+      const clampedY = Math.min(92, Math.max(8, y));
+
+      setNodes((prev) => prev.map((node) => (node.id === draggedNodeId ? { ...node, x: clampedX, y: clampedY } : node)));
+    };
+
+    const handleUp = () => setDraggedNodeId("");
+
+    window.addEventListener("mousemove", handleMove);
+    window.addEventListener("mouseup", handleUp);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mouseup", handleUp);
+    };
+  }, [draggedNodeId]);
+
+  const nodeById = useMemo(() => Object.fromEntries(nodes.map((node) => [node.id, node])), [nodes]);
+
+  return (
+    <div className="graph-window" ref={containerRef}>
+      <div className="graph-background" />
+
+      <svg className="graph-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        {graphEdges.map(([from, to]) => {
+          const fromNode = nodeById[from];
+          const toNode = nodeById[to];
+          const isActive = selectedNodeId && highlightedIds.has(from) && highlightedIds.has(to);
+
+          return (
+            <line
+              key={`${from}-${to}`}
+              x1={fromNode.x}
+              y1={fromNode.y}
+              x2={toNode.x}
+              y2={toNode.y}
+              className={`graph-edge ${isActive ? "active" : ""}`}
+            />
+          );
+        })}
+      </svg>
+
+      {nodes.map((node) => {
+        const isSelected = selectedNodeId === node.id;
+        const isHighlighted = highlightedIds.has(node.id);
+
+        return (
+          <button
+            key={node.id}
+            type="button"
+            className={`graph-node ${isSelected ? "selected" : ""} ${selectedNodeId && !isHighlighted ? "dimmed" : ""}`}
+            style={{ left: `${node.x}%`, top: `${node.y}%` }}
+            onClick={() => setSelectedNodeId((prev) => (prev === node.id ? "" : node.id))}
+            onMouseDown={(event) => {
+              if (event.button !== 0) {
+                return;
+              }
+              event.preventDefault();
+              setDraggedNodeId(node.id);
+            }}
+          >
+            <span>{node.label}</span>
+          </button>
+        );
+      })}
+
+      <div className="graph-selected-list">
+        <strong>Выбранные интересы:</strong>
+        {selectedInterests.length > 0 ? selectedInterests.join(", ") : " —"}
+      </div>
+    </div>
+  );
+}
+
+function NewsFeed({ initialView = "news" }) {
   const [likes, setLikes] = useState({});
   const [saved, setSaved] = useState({});
   const [interestingFirst, setInterestingFirst] = useState(true);
@@ -66,8 +214,22 @@ function NewsFeed() {
   const [error, setError] = useState("");
   const [interestsInput, setInterestsInput] = useState("");
   const [savingInterests, setSavingInterests] = useState(false);
+  const [activeView, setActiveView] = useState(initialView);
+  const [selectedGraphInterests, setSelectedGraphInterests] = useState([]);
 
   const token = localStorage.getItem("jwtToken") ?? "";
+
+  const handleNavigationClick = (link) => {
+    if (link === "Новости") {
+      setActiveView("news");
+      window.history.replaceState({}, "", "/news");
+    }
+
+    if (link === "Граф интересов") {
+      setActiveView("graph");
+      window.history.replaceState({}, "", "/graph");
+    }
+  };
 
   const loadNewsAndInterests = async () => {
     if (!token) {
@@ -140,10 +302,13 @@ function NewsFeed() {
     setSavingInterests(true);
     setError("");
     try {
-      const parsedInterests = interestsInput
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean);
+      const parsedInterests =
+        activeView === "graph" && selectedGraphInterests.length > 0
+          ? selectedGraphInterests
+          : interestsInput
+              .split(",")
+              .map((item) => item.trim())
+              .filter(Boolean);
 
       const res = await fetch("http://127.0.0.1:8000/interests", {
         method: "PUT",
@@ -178,7 +343,12 @@ function NewsFeed() {
       <div className="news-layout">
         <aside className="nav-panel left-panel" aria-label="Навигация профиля">
           {profileLinks.map((link) => (
-            <button key={link} className="panel-link" type="button">
+            <button
+              key={link}
+              className={`panel-link ${(activeView === "news" && link === "Новости") || (activeView === "graph" && link === "Граф интересов") ? "active" : ""}`}
+              type="button"
+              onClick={() => handleNavigationClick(link)}
+            >
               {link}
             </button>
           ))}
@@ -186,15 +356,19 @@ function NewsFeed() {
 
         <section className="news-main" aria-label="Лента новостей в стиле TikTok">
           <header className="news-feed-header">
-            <h1>Лента новостей</h1>
-            <p>Свайпай вверх/вниз или прокручивай колесом мыши</p>
-            <span className="news-feed-counter">Реакций: {totalLikes}</span>
+            <h1>{activeView === "news" ? "Лента новостей" : "Граф интересов"}</h1>
+            <p>
+              {activeView === "news"
+                ? "Свайпай вверх/вниз или прокручивай колесом мыши"
+                : "Полноразмерное окно графа, сопоставимое по размеру с лентой"}
+            </p>
+            {activeView === "news" && <span className="news-feed-counter">Реакций: {totalLikes}</span>}
           </header>
 
-          {loading && <p className="news-state">Загрузка новостей...</p>}
-          {error && <p className="news-state news-state-error">{error}</p>}
+          {activeView === "news" && loading && <p className="news-state">Загрузка новостей...</p>}
+          {activeView === "news" && error && <p className="news-state news-state-error">{error}</p>}
 
-          {!loading && !error && (
+          {activeView === "news" && !loading && !error && (
             <div className="news-feed">
               {visibleNews.map((newsItem) => {
                 const currentLike = likes[newsItem.id] ?? 0;
@@ -248,6 +422,10 @@ function NewsFeed() {
                 );
               })}
             </div>
+          )}
+
+          {activeView === "graph" && (
+            <InterestsGraph onSelectionChange={setSelectedGraphInterests} />
           )}
         </section>
 
