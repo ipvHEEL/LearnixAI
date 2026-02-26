@@ -11,7 +11,10 @@
   max-width: 1320px;
   margin: 0 auto;
   display: grid;
-  grid-template-columns: minmax(180px, 220px) minmax(620px, 1fr) minmax(220px, 250px);
+  grid-template-columns: minmax(180px, 220px) minmax(620px, 1fr) minmax(
+      220px,
+      250px
+    );
   gap: 18px;
   align-items: start;
 }
@@ -261,4 +264,22 @@
   .news-feed-header p {
     font-size: 1rem;
   }
+}
+
+.news-state {
+  text-align: center;
+  margin: 20px 0;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.news-state-error {
+  color: #ff8f8f;
+}
+
+.news-link {
+  margin-top: 14px;
+  display: inline-block;
+  color: #ffffff;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }

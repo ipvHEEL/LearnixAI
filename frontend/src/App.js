@@ -1,15 +1,15 @@
-import './App.css';
-import LoginForm from './LoginForm';
-import CanvasBackground from './CanvasBackground';
-import NewsFeed from './NewsFeed';
+import "./App.css";
+import LoginForm from "./LoginForm";
+import CanvasBackground from "./CanvasBackground";
+import NewsFeed from "./NewsFeed";
 
 function App() {
-  const isDashboardPage = window.location.pathname === '/dashboard';
+  const isNewsPage = window.location.pathname === "/news";
 
   return (
     <>
       <CanvasBackground />
-      {isDashboardPage ? <NewsFeed /> : <LoginForm />}
+      {isNewsPage ? <NewsFeed /> : <LoginForm />}
     </>
   );
 }
