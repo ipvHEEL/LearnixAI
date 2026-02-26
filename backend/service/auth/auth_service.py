@@ -57,8 +57,4 @@ class AuthService:
             return None
 
         user_id = int(payload["sub"])
-        saved_token = self.user_repository.get_current_jwt(user_id)
-        if saved_token != token:
-            return None
-
         return self.user_repository.get_user_by_id(user_id)

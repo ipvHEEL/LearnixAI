@@ -70,6 +70,12 @@ function NewsFeed() {
   const token = localStorage.getItem("jwtToken") ?? "";
 
   const loadNewsAndInterests = async () => {
+    if (!token) {
+      setError("Сессия не найдена. Выполните вход снова.");
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError("");
 
@@ -88,6 +94,12 @@ function NewsFeed() {
       });
 
       if (!res.ok) {
+        if (res.status === 401) {
+          localStorage.removeItem("jwtToken");
+          localStorage.removeItem("userId");
+          window.location.href = "/";
+          return;
+        }
         throw new Error("Ошибка загрузки новостей");
       }
 
@@ -143,6 +155,12 @@ function NewsFeed() {
       });
 
       if (!res.ok) {
+        if (res.status === 401) {
+          localStorage.removeItem("jwtToken");
+          localStorage.removeItem("userId");
+          window.location.href = "/";
+          return;
+        }
         throw new Error("Не удалось обновить интересы");
       }
 
