@@ -62,24 +62,6 @@ const graphNodesTemplate = [
   { id: "future", label: "Будущее", x: 50, y: 84 },
 ];
 
-const graphEdges = [
-  ["ai", "ml"],
-  ["ai", "data"],
-  ["ai", "design"],
-  ["ml", "startup"],
-  ["ml", "design"],
-  ["data", "product"],
-  ["data", "science"],
-  ["startup", "design"],
-  ["design", "product"],
-  ["product", "science"],
-  ["design", "robotics"],
-  ["product", "space"],
-  ["robotics", "future"],
-  ["space", "future"],
-  ["science", "space"],
-];
-
 const initialNodes = graphNodesTemplate.map((node) => ({ ...node }));
 
 function InterestsGraph({ onSelectionChange }) {
@@ -88,6 +70,33 @@ function InterestsGraph({ onSelectionChange }) {
   const [selectedNodeId, setSelectedNodeId] = useState("");
   const [draggedNodeId, setDraggedNodeId] = useState("");
 
+  const graphEdges = useMemo(() => {
+    const nodeById = Object.fromEntries(nodes.map((node) => [node.id, node]));
+    const edgeSet = new Set();
+
+    nodes.forEach((node) => {
+      const nearest = nodes
+        .filter((candidate) => candidate.id !== node.id)
+        .map((candidate) => {
+          const dx = node.x - candidate.x;
+          const dy = node.y - candidate.y;
+          return { id: candidate.id, distance: Math.sqrt(dx * dx + dy * dy) };
+        })
+        .sort((a, b) => a.distance - b.distance)
+        .slice(0, 2);
+
+      nearest.forEach((target) => {
+        const edge = [node.id, target.id].sort().join("|");
+        edgeSet.add(edge);
+      });
+    });
+
+    return Array.from(edgeSet).map((edge) => {
+      const [from, to] = edge.split("|");
+      return [from, to, nodeById[from], nodeById[to]];
+    });
+  }, [nodes]);
+
   const neighborsByNode = useMemo(() => {
     const map = new Map();
     graphEdges.forEach(([from, to]) => {
@@ -95,7 +104,7 @@ function InterestsGraph({ onSelectionChange }) {
       map.set(to, [...(map.get(to) ?? []), from]);
     });
     return map;
-  }, []);
+  }, [graphEdges]);
 
   const highlightedIds = useMemo(() => {
     if (!selectedNodeId) {
@@ -148,16 +157,14 @@ function InterestsGraph({ onSelectionChange }) {
     };
   }, [draggedNodeId]);
 
-  const nodeById = useMemo(() => Object.fromEntries(nodes.map((node) => [node.id, node])), [nodes]);
-
   return (
     <div className="graph-window" ref={containerRef}>
       <div className="graph-background" />
 
+      <div className="graph-hint">Связи строятся автоматически по близости узлов. Перетаскивайте узлы, чтобы менять сеть.</div>
+
       <svg className="graph-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-        {graphEdges.map(([from, to]) => {
-          const fromNode = nodeById[from];
-          const toNode = nodeById[to];
+        {graphEdges.map(([from, to, fromNode, toNode]) => {
           const isActive = selectedNodeId && highlightedIds.has(from) && highlightedIds.has(to);
 
           return (
