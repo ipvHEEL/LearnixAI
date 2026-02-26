@@ -3,16 +3,16 @@
   z-index: 2;
   min-height: 100vh;
   color: #f7f7f7;
-  padding: 22px 20px;
+  padding: 16px 12px 20px;
   box-sizing: border-box;
 }
 
 .news-layout {
-  max-width: 1340px;
+  max-width: 1320px;
   margin: 0 auto;
   display: grid;
-  grid-template-columns: minmax(180px, 220px) minmax(560px, 1fr) minmax(200px, 250px);
-  gap: 20px;
+  grid-template-columns: minmax(180px, 220px) minmax(620px, 1fr) minmax(220px, 250px);
+  gap: 18px;
   align-items: start;
 }
 
@@ -27,22 +27,22 @@
 .left-panel {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 .right-column {
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 14px;
   background: rgba(8, 9, 12, 0.45);
-  padding: 14px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .right-panel h3 {
   margin: 0 0 8px;
-  font-size: 1.92rem;
+  font-size: 1.15rem;
 }
 
 .panel-link {
@@ -51,9 +51,10 @@
   background: transparent;
   border: 0;
   color: #f0f0f0;
-  font-size: 1.75rem;
+  font-size: 1.05rem;
+  line-height: 1.2;
   border-radius: 10px;
-  padding: 9px 8px;
+  padding: 8px;
   cursor: pointer;
 }
 
@@ -64,7 +65,7 @@
 .news-main {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
 }
 
 .news-feed-header {
@@ -77,13 +78,14 @@
 
 .news-feed-header h1 {
   margin: 0;
-  font-size: 1.9rem;
+  font-size: 2rem;
+  line-height: 1.05;
 }
 
 .news-feed-header p {
-  margin: 5px 0;
+  margin: 4px 0;
   color: rgba(255, 255, 255, 0.78);
-  font-size: 1.58rem;
+  font-size: 0.95rem;
 }
 
 .news-feed-counter {
@@ -91,11 +93,11 @@
   background: rgba(255, 255, 255, 0.13);
   border-radius: 999px;
   padding: 5px 12px;
-  font-size: 1.4rem;
+  font-size: 0.95rem;
 }
 
 .news-feed {
-  height: calc(100vh - 132px);
+  height: calc(100vh - 126px);
   overflow-y: auto;
   scroll-snap-type: y mandatory;
   scrollbar-width: none;
@@ -132,38 +134,38 @@
 .news-card-content {
   position: relative;
   z-index: 2;
-  width: min(700px, calc(100% - 88px));
+  width: min(760px, calc(100% - 96px));
 }
 
 .news-category {
   display: inline-block;
   margin-bottom: 12px;
   border-radius: 999px;
-  padding: 5px 13px;
-  background: rgba(255, 255, 255, 0.25);
-  font-size: 1.5rem;
+  padding: 4px 12px;
+  background: rgba(255, 255, 255, 0.28);
+  font-size: 0.95rem;
   font-weight: 700;
 }
 
 .news-card-content h2 {
   margin: 0;
-  font-size: clamp(2.6rem, 4.1vw, 5rem);
-  line-height: 1.14;
+  font-size: clamp(2rem, 4vw, 3.25rem);
+  line-height: 1.12;
 }
 
 .news-card-content p {
-  margin: 16px 0 0;
-  font-size: clamp(1.5rem, 2vw, 2.2rem);
-  line-height: 1.55;
-  max-width: 92%;
+  margin: 14px 0 0;
+  font-size: clamp(1.1rem, 1.7vw, 1.55rem);
+  line-height: 1.35;
+  max-width: 94%;
   color: rgba(255, 255, 255, 0.9);
 }
 
 .news-meta {
   margin-top: 18px;
   display: flex;
-  gap: 14px;
-  font-size: 1.45rem;
+  gap: 12px;
+  font-size: 1rem;
   color: rgba(255, 255, 255, 0.84);
 }
 
@@ -173,7 +175,7 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-bottom: 42px;
+  margin-bottom: 40px;
 }
 
 .news-actions button {
@@ -183,7 +185,7 @@
   border: 1px solid rgba(255, 255, 255, 0.35);
   background: rgba(14, 14, 16, 0.42);
   color: #fff;
-  font-size: 1.35rem;
+  font-size: 1.4rem;
   cursor: pointer;
 }
 
@@ -200,11 +202,12 @@
 }
 
 .switch-row span {
-  font-size: 1.7rem;
+  font-size: 0.95rem;
+  line-height: 1.2;
 }
 
 .switch {
-  width: 68px;
+  width: 70px;
   height: 34px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.3);
@@ -223,7 +226,7 @@
 }
 
 .switch.active .switch-thumb {
-  transform: translateX(32px);
+  transform: translateX(34px);
   background: #c9d0ff;
 }
 
@@ -257,32 +260,5 @@
 
   .news-feed-header p {
     font-size: 1rem;
-  }
-
-  .news-feed-counter {
-    font-size: 0.9rem;
-  }
-
-  .news-card {
-    padding: 18px;
-    border-radius: 16px;
-  }
-
-  .news-card-content {
-    width: calc(100% - 68px);
-  }
-
-  .news-card-content h2 {
-    font-size: clamp(1.6rem, 7vw, 2.2rem);
-  }
-
-  .news-card-content p {
-    font-size: clamp(1rem, 4vw, 1.15rem);
-    max-width: 100%;
-  }
-
-  .news-category,
-  .news-meta {
-    font-size: 0.9rem;
   }
 }
