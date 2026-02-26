@@ -11,13 +11,7 @@ const profileLinks = [
   "Музыка",
 ];
 
-const sectionLinks = [
-  "Новости",
-  "Фотографии",
-  "Подкасты",
-  "Рекомендации",
-  "Поиск",
-];
+const sectionLinks = ["Новости", "Фотографии", "Подкасты", "Рекомендации", "Поиск"];
 
 const cardGradients = [
   "linear-gradient(180deg, #7a2ef7 0%, #820f85 56%, #280020 100%)",
@@ -45,8 +39,7 @@ const toNewsItem = (article, index) => {
 
   return {
     id: `${article.url ?? "article"}-${index}`,
-    category:
-      article.relevance_score >= 0.5 ? "Высокий интерес" : "Рекомендовано",
+    category: article.relevance_score >= 0.5 ? "Высокий интерес" : "Рекомендовано",
     title: article.title ?? "Без названия",
     summary: decodeHtml(article.description ?? article.full_text ?? ""),
     source,
@@ -71,38 +64,49 @@ function NewsFeed() {
   const [news, setNews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [interestsInput, setInterestsInput] = useState("");
+  const [savingInterests, setSavingInterests] = useState(false);
+
+  const token = localStorage.getItem("jwtToken") ?? "";
+
+  const loadNewsAndInterests = async () => {
+    setLoading(true);
+    setError("");
+
+    try {
+      const interestsRes = await fetch("http://127.0.0.1:8000/interests", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (interestsRes.ok) {
+        const interestsData = await interestsRes.json();
+        setInterestsInput((interestsData.interests ?? []).join(", "));
+      }
+
+      const res = await fetch("http://127.0.0.1:8000/news", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        throw new Error("Ошибка загрузки новостей");
+      }
+
+      const data = await res.json();
+      const normalizedNews = (data.articles ?? []).map(toNewsItem);
+      setNews(normalizedNews);
+    } catch (fetchError) {
+      console.error(fetchError);
+      setError("Не удалось получить новости с сервера");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchNews = async () => {
-      setLoading(true);
-      setError("");
-
-      try {
-        const userId = localStorage.getItem("userId") ?? "1";
-        const res = await fetch(`http://127.0.0.1:8000/news?user_id=${userId}`);
-
-        if (!res.ok) {
-          throw new Error("Ошибка загрузки новостей");
-        }
-
-        const data = await res.json();
-        const normalizedNews = (data.articles ?? []).map(toNewsItem);
-        setNews(normalizedNews);
-      } catch (fetchError) {
-        console.error(fetchError);
-        setError("Не удалось получить новости с сервера");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchNews();
+    loadNewsAndInterests();
   }, []);
 
-  const totalLikes = useMemo(
-    () => Object.values(likes).reduce((acc, current) => acc + current, 0),
-    [likes],
-  );
+  const totalLikes = useMemo(() => Object.values(likes).reduce((acc, current) => acc + current, 0), [likes]);
 
   const visibleNews = useMemo(() => {
     if (!interestingFirst) {
@@ -120,6 +124,37 @@ function NewsFeed() {
     setSaved((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
+  const handleSaveInterests = async () => {
+    setSavingInterests(true);
+    setError("");
+    try {
+      const parsedInterests = interestsInput
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+      const res = await fetch("http://127.0.0.1:8000/interests", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ interests: parsedInterests }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Не удалось обновить интересы");
+      }
+
+      await loadNewsAndInterests();
+    } catch (saveError) {
+      console.error(saveError);
+      setError("Не удалось обновить интересы пользователя");
+    } finally {
+      setSavingInterests(false);
+    }
+  };
+
   return (
     <main className="news-feed-page">
       <div className="news-layout">
@@ -131,10 +166,7 @@ function NewsFeed() {
           ))}
         </aside>
 
-        <section
-          className="news-main"
-          aria-label="Лента новостей в стиле TikTok"
-        >
+        <section className="news-main" aria-label="Лента новостей в стиле TikTok">
           <header className="news-feed-header">
             <h1>Лента новостей</h1>
             <p>Свайпай вверх/вниз или прокручивай колесом мыши</p>
@@ -151,11 +183,7 @@ function NewsFeed() {
                 const isSaved = Boolean(saved[newsItem.id]);
 
                 return (
-                  <article
-                    key={newsItem.id}
-                    className="news-card"
-                    style={{ backgroundImage: newsItem.color }}
-                  >
+                  <article key={newsItem.id} className="news-card" style={{ backgroundImage: newsItem.color }}>
                     <div className="news-card-overlay" />
                     <div className="news-card-content">
                       <span className="news-category">{newsItem.category}</span>
@@ -167,26 +195,16 @@ function NewsFeed() {
                         <span>{newsItem.time}</span>
                       </div>
 
-                      <a
-                        href={newsItem.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="news-link"
-                      >
+                      <a href={newsItem.url} target="_blank" rel="noreferrer" className="news-link">
                         Читать оригинал
                       </a>
                     </div>
 
-                    <aside
-                      className="news-actions"
-                      aria-label="Действия с новостью"
-                    >
+                    <aside className="news-actions" aria-label="Действия с новостью">
                       <button
                         type="button"
                         className={currentLike === 1 ? "active" : ""}
-                        onClick={() =>
-                          updateLike(newsItem.id, currentLike === 1 ? 0 : 1)
-                        }
+                        onClick={() => updateLike(newsItem.id, currentLike === 1 ? 0 : 1)}
                         aria-label="Нравится"
                       >
                         👍
@@ -194,9 +212,7 @@ function NewsFeed() {
                       <button
                         type="button"
                         className={currentLike === -1 ? "active" : ""}
-                        onClick={() =>
-                          updateLike(newsItem.id, currentLike === -1 ? 0 : -1)
-                        }
+                        onClick={() => updateLike(newsItem.id, currentLike === -1 ? 0 : -1)}
                         aria-label="Не нравится"
                       >
                         👎
@@ -239,6 +255,19 @@ function NewsFeed() {
                 <span className="switch-thumb" />
               </button>
             </div>
+          </section>
+
+          <section className="nav-panel interests-panel">
+            <h3>Интересы</h3>
+            <textarea
+                value={interestsInput}
+                onChange={(e) => setInterestsInput(e.target.value)}
+                placeholder="Введите интересы через запятую"
+                rows={5}
+            />
+            <button type="button" onClick={handleSaveInterests} disabled={savingInterests}>
+              {savingInterests ? "Сохранение..." : "Обновить интересы"}
+            </button>
           </section>
         </aside>
       </div>

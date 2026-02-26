@@ -283,3 +283,19 @@
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+
+.interests-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.interests-panel textarea {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(12, 12, 20, 0.6);
+  color: #fff;
+  padding: 10px;
+  resize: vertical;
+}
