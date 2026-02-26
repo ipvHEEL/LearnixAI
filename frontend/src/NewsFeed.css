@@ -65,6 +65,11 @@
   background: rgba(255, 255, 255, 0.08);
 }
 
+.panel-link.active {
+  background: rgba(255, 255, 255, 0.2);
+  font-weight: 700;
+}
+
 .news-main {
   display: flex;
   flex-direction: column;
@@ -97,6 +102,15 @@
   border-radius: 999px;
   padding: 5px 12px;
   font-size: 0.95rem;
+}
+
+.last-viewed-link {
+  display: block;
+  margin-top: 8px;
+  color: #cfd6ff;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font-size: 0.92rem;
 }
 
 .news-feed {
@@ -298,4 +312,127 @@
   color: #fff;
   padding: 10px;
   resize: vertical;
+}
+
+.graph-window {
+  position: relative;
+  min-height: calc(100vh - 126px);
+  border-radius: 20px;
+  background: radial-gradient(circle at top, rgba(69, 42, 139, 0.38) 0%, rgba(5, 8, 22, 0.95) 55%);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  overflow: hidden;
+  padding: 0;
+}
+
+.graph-background {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, rgba(115, 84, 245, 0.18), transparent 65%);
+}
+
+.graph-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.graph-hint {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 4;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.42);
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 0.82rem;
+}
+
+.graph-edge {
+  stroke: rgba(182, 174, 255, 0.35);
+  stroke-width: 0.33;
+  transition: all 0.24s ease;
+}
+
+.graph-edge.active {
+  stroke: rgba(175, 122, 255, 0.95);
+  stroke-width: 0.5;
+  filter: drop-shadow(0 0 6px rgba(164, 106, 255, 0.7));
+}
+
+.graph-node {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 106px;
+  height: 106px;
+  border-radius: 50%;
+  border: 1px solid rgba(210, 208, 255, 0.6);
+  background: radial-gradient(circle at 35% 30%, rgba(183, 161, 255, 0.9), rgba(85, 60, 174, 0.78));
+  color: #fff;
+  cursor: grab;
+  z-index: 3;
+  transition: all 0.24s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 12px;
+  box-shadow: 0 0 16px rgba(109, 75, 220, 0.5);
+  animation: graphNodePulse 3.4s ease-in-out infinite;
+}
+
+.graph-node:active {
+  cursor: grabbing;
+}
+
+.graph-node span {
+  font-size: 0.9rem;
+  line-height: 1.2;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.graph-node.selected {
+  border-color: rgba(255, 255, 255, 0.96);
+  transform: translate(-50%, -50%) scale(1.08);
+  box-shadow: 0 0 24px rgba(201, 126, 255, 0.95);
+}
+
+.graph-node.dimmed {
+  opacity: 0.3;
+}
+
+.graph-selected-list {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  z-index: 4;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.42);
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 0.92rem;
+}
+
+@keyframes graphNodePulse {
+  0%,
+  100% {
+    box-shadow: 0 0 14px rgba(109, 75, 220, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 26px rgba(157, 108, 255, 0.75);
+  }
+}
+
+@media (max-width: 1220px) {
+  .graph-window {
+    min-height: calc(100vh - 120px);
+  }
+
+  .graph-node {
+    width: 92px;
+    height: 92px;
+  }
 }

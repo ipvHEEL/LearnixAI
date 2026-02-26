@@ -5,9 +5,11 @@ from pydantic import BaseModel, EmailStr, Field
 from service.auth.auth_service import AuthService
 from service.data.api_load import load_all_rss, parse_articles
 from service.data.neural_ranker import rank_articles_nn
+from service.session.redis_session_store import RedisSessionStore
 
 app = FastAPI()
 auth_service = AuthService()
+session_store = RedisSessionStore()
 
 origins = [
     "http://localhost:3000",
@@ -36,6 +38,12 @@ class RegisterRequest(BaseModel):
 
 class InterestsUpdateRequest(BaseModel):
     interests: list[str]
+
+
+class LastViewedPostRequest(BaseModel):
+    post_id: str
+    post_url: str | None = None
+    post_title: str | None = None
 
 
 def _extract_token(authorization: str | None) -> str:
@@ -110,3 +118,29 @@ def update_interests(data: InterestsUpdateRequest, authorization: str | None = H
     user = _authorized_user(authorization)
     updated = auth_service.user_repository.update_interests(user.user_id, data.interests)
     return {"user_id": user.user_id, "interests": updated}
+
+
+@app.put("/session/last-viewed-post")
+def save_last_viewed_post(data: LastViewedPostRequest, authorization: str | None = Header(default=None)):
+    user = _authorized_user(authorization)
+    stored = session_store.save_last_viewed_post(
+        user.user_id,
+        {
+            "post_id": data.post_id,
+            "post_url": data.post_url,
+            "post_title": data.post_title,
+        },
+    )
+    if not stored:
+        raise HTTPException(status_code=503, detail="Session storage unavailable")
+    return {"status": "ok"}
+
+
+@app.get("/session/last-viewed-post")
+def get_last_viewed_post(authorization: str | None = Header(default=None)):
+    user = _authorized_user(authorization)
+    payload = session_store.get_last_viewed_post(user.user_id)
+    return {
+        "user_id": user.user_id,
+        "last_viewed_post": payload,
+    }
