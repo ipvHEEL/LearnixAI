@@ -1,9 +1,13 @@
-#service/user/user.py
+from dataclasses import dataclass, field
+
+
+@dataclass
 class User:
-    def __init__(self, user_id: int, interests: list[str], user_name: str):
-        self.user_id = user_id
-        self.interests = interests or []
-        self.user_name = user_name
+    user_id: int
+    user_name: str
+    email: str
+    password_hash: str
+    interests: list[str] = field(default_factory=list)
 
     def has_interests(self) -> bool:
         return len(self.interests) > 0

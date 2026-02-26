@@ -1,23 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import "./NewsFeed.css";
 
-const profileLinks = [
-  "Моя страница",
-  "Новости",
-  "Сообщения",
-  "Друзья",
-  "Сообщества",
-  "Фотографии",
-  "Музыка",
-];
+const profileLinks = ["Моя страница", "Новости", "Граф интересов", "Сообщения", "Друзья", "Сообщества", "Фотографии", "Музыка"];
 
-const sectionLinks = [
-  "Новости",
-  "Фотографии",
-  "Подкасты",
-  "Рекомендации",
-  "Поиск",
-];
+const sectionLinks = ["Новости", "Фотографии", "Подкасты", "Рекомендации", "Поиск"];
 
 const cardGradients = [
   "linear-gradient(180deg, #7a2ef7 0%, #820f85 56%, #280020 100%)",
@@ -45,8 +31,7 @@ const toNewsItem = (article, index) => {
 
   return {
     id: `${article.url ?? "article"}-${index}`,
-    category:
-      article.relevance_score >= 0.5 ? "Высокий интерес" : "Рекомендовано",
+    category: article.relevance_score >= 0.5 ? "Высокий интерес" : "Рекомендовано",
     title: article.title ?? "Без названия",
     summary: decodeHtml(article.description ?? article.full_text ?? ""),
     source,
@@ -64,45 +49,245 @@ const toNewsItem = (article, index) => {
   };
 };
 
-function NewsFeed() {
+const graphNodesTemplate = [
+  { id: "ai", label: "AI", x: 50, y: 18 },
+  { id: "ml", label: "ML", x: 34, y: 33 },
+  { id: "data", label: "Data", x: 66, y: 33 },
+  { id: "startup", label: "Стартапы", x: 22, y: 50 },
+  { id: "design", label: "Дизайн", x: 42, y: 52 },
+  { id: "product", label: "Product", x: 58, y: 52 },
+  { id: "science", label: "Наука", x: 77, y: 50 },
+  { id: "robotics", label: "Робототехника", x: 36, y: 70 },
+  { id: "space", label: "Космос", x: 64, y: 70 },
+  { id: "future", label: "Будущее", x: 50, y: 84 },
+];
+
+const initialNodes = graphNodesTemplate.map((node) => ({ ...node }));
+
+function InterestsGraph({ onSelectionChange }) {
+  const containerRef = useRef(null);
+  const [nodes, setNodes] = useState(initialNodes);
+  const [selectedNodeId, setSelectedNodeId] = useState("");
+  const [draggedNodeId, setDraggedNodeId] = useState("");
+
+  const graphEdges = useMemo(() => {
+    const nodeById = Object.fromEntries(nodes.map((node) => [node.id, node]));
+    const edgeSet = new Set();
+
+    nodes.forEach((node) => {
+      const nearest = nodes
+        .filter((candidate) => candidate.id !== node.id)
+        .map((candidate) => {
+          const dx = node.x - candidate.x;
+          const dy = node.y - candidate.y;
+          return { id: candidate.id, distance: Math.sqrt(dx * dx + dy * dy) };
+        })
+        .sort((a, b) => a.distance - b.distance)
+        .slice(0, 2);
+
+      nearest.forEach((target) => {
+        const edge = [node.id, target.id].sort().join("|");
+        edgeSet.add(edge);
+      });
+    });
+
+    return Array.from(edgeSet).map((edge) => {
+      const [from, to] = edge.split("|");
+      return [from, to, nodeById[from], nodeById[to]];
+    });
+  }, [nodes]);
+
+  const neighborsByNode = useMemo(() => {
+    const map = new Map();
+    graphEdges.forEach(([from, to]) => {
+      map.set(from, [...(map.get(from) ?? []), to]);
+      map.set(to, [...(map.get(to) ?? []), from]);
+    });
+    return map;
+  }, [graphEdges]);
+
+  const highlightedIds = useMemo(() => {
+    if (!selectedNodeId) {
+      return new Set();
+    }
+
+    return new Set([selectedNodeId, ...(neighborsByNode.get(selectedNodeId) ?? [])]);
+  }, [neighborsByNode, selectedNodeId]);
+
+  const selectedInterests = useMemo(() => {
+    if (!selectedNodeId) {
+      return [];
+    }
+
+    return nodes.filter((node) => highlightedIds.has(node.id)).map((node) => node.label);
+  }, [highlightedIds, nodes, selectedNodeId]);
+
+  useEffect(() => {
+    onSelectionChange(selectedInterests);
+  }, [onSelectionChange, selectedInterests]);
+
+  useEffect(() => {
+    if (!draggedNodeId) {
+      return undefined;
+    }
+
+    const handleMove = (event) => {
+      const container = containerRef.current;
+      if (!container) {
+        return;
+      }
+
+      const rect = container.getBoundingClientRect();
+      const x = ((event.clientX - rect.left) / rect.width) * 100;
+      const y = ((event.clientY - rect.top) / rect.height) * 100;
+      const clampedX = Math.min(95, Math.max(5, x));
+      const clampedY = Math.min(92, Math.max(8, y));
+
+      setNodes((prev) => prev.map((node) => (node.id === draggedNodeId ? { ...node, x: clampedX, y: clampedY } : node)));
+    };
+
+    const handleUp = () => setDraggedNodeId("");
+
+    window.addEventListener("mousemove", handleMove);
+    window.addEventListener("mouseup", handleUp);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mouseup", handleUp);
+    };
+  }, [draggedNodeId]);
+
+  return (
+    <div className="graph-window" ref={containerRef}>
+      <div className="graph-background" />
+
+      <div className="graph-hint">Связи строятся автоматически по близости узлов. Перетаскивайте узлы, чтобы менять сеть.</div>
+
+      <svg className="graph-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        {graphEdges.map(([from, to, fromNode, toNode]) => {
+          const isActive = selectedNodeId && highlightedIds.has(from) && highlightedIds.has(to);
+
+          return (
+            <line
+              key={`${from}-${to}`}
+              x1={fromNode.x}
+              y1={fromNode.y}
+              x2={toNode.x}
+              y2={toNode.y}
+              className={`graph-edge ${isActive ? "active" : ""}`}
+            />
+          );
+        })}
+      </svg>
+
+      {nodes.map((node) => {
+        const isSelected = selectedNodeId === node.id;
+        const isHighlighted = highlightedIds.has(node.id);
+
+        return (
+          <button
+            key={node.id}
+            type="button"
+            className={`graph-node ${isSelected ? "selected" : ""} ${selectedNodeId && !isHighlighted ? "dimmed" : ""}`}
+            style={{ left: `${node.x}%`, top: `${node.y}%` }}
+            onClick={() => setSelectedNodeId((prev) => (prev === node.id ? "" : node.id))}
+            onMouseDown={(event) => {
+              if (event.button !== 0) {
+                return;
+              }
+              event.preventDefault();
+              setDraggedNodeId(node.id);
+            }}
+          >
+            <span>{node.label}</span>
+          </button>
+        );
+      })}
+
+      <div className="graph-selected-list">
+        <strong>Выбранные интересы:</strong>
+        {selectedInterests.length > 0 ? selectedInterests.join(", ") : " —"}
+      </div>
+    </div>
+  );
+}
+
+function NewsFeed({ initialView = "news" }) {
   const [likes, setLikes] = useState({});
   const [saved, setSaved] = useState({});
   const [interestingFirst, setInterestingFirst] = useState(true);
   const [news, setNews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [interestsInput, setInterestsInput] = useState("");
+  const [savingInterests, setSavingInterests] = useState(false);
+  const [activeView, setActiveView] = useState(initialView);
+  const [selectedGraphInterests, setSelectedGraphInterests] = useState([]);
+
+  const token = localStorage.getItem("jwtToken") ?? "";
+
+  const handleNavigationClick = (link) => {
+    if (link === "Новости") {
+      setActiveView("news");
+      window.history.replaceState({}, "", "/news");
+    }
+
+    if (link === "Граф интересов") {
+      setActiveView("graph");
+      window.history.replaceState({}, "", "/graph");
+    }
+  };
+
+  const loadNewsAndInterests = async () => {
+    if (!token) {
+      setError("Сессия не найдена. Выполните вход снова.");
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const interestsRes = await fetch("http://127.0.0.1:8000/interests", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (interestsRes.ok) {
+        const interestsData = await interestsRes.json();
+        setInterestsInput((interestsData.interests ?? []).join(", "));
+      }
+
+      const res = await fetch("http://127.0.0.1:8000/news", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        if (res.status === 401) {
+          localStorage.removeItem("jwtToken");
+          localStorage.removeItem("userId");
+          window.location.href = "/";
+          return;
+        }
+        throw new Error("Ошибка загрузки новостей");
+      }
+
+      const data = await res.json();
+      const normalizedNews = (data.articles ?? []).map(toNewsItem);
+      setNews(normalizedNews);
+    } catch (fetchError) {
+      console.error(fetchError);
+      setError("Не удалось получить новости с сервера");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchNews = async () => {
-      setLoading(true);
-      setError("");
-
-      try {
-        const userId = localStorage.getItem("userId") ?? "1";
-        const res = await fetch(`http://127.0.0.1:8000/news?user_id=${userId}`);
-
-        if (!res.ok) {
-          throw new Error("Ошибка загрузки новостей");
-        }
-
-        const data = await res.json();
-        const normalizedNews = (data.articles ?? []).map(toNewsItem);
-        setNews(normalizedNews);
-      } catch (fetchError) {
-        console.error(fetchError);
-        setError("Не удалось получить новости с сервера");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchNews();
+    loadNewsAndInterests();
   }, []);
 
-  const totalLikes = useMemo(
-    () => Object.values(likes).reduce((acc, current) => acc + current, 0),
-    [likes],
-  );
+  const totalLikes = useMemo(() => Object.values(likes).reduce((acc, current) => acc + current, 0), [likes]);
 
   const visibleNews = useMemo(() => {
     if (!interestingFirst) {
@@ -120,42 +305,84 @@ function NewsFeed() {
     setSaved((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
+  const handleSaveInterests = async () => {
+    setSavingInterests(true);
+    setError("");
+    try {
+      const parsedInterests =
+        activeView === "graph" && selectedGraphInterests.length > 0
+          ? selectedGraphInterests
+          : interestsInput
+              .split(",")
+              .map((item) => item.trim())
+              .filter(Boolean);
+
+      const res = await fetch("http://127.0.0.1:8000/interests", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ interests: parsedInterests }),
+      });
+
+      if (!res.ok) {
+        if (res.status === 401) {
+          localStorage.removeItem("jwtToken");
+          localStorage.removeItem("userId");
+          window.location.href = "/";
+          return;
+        }
+        throw new Error("Не удалось обновить интересы");
+      }
+
+      await loadNewsAndInterests();
+    } catch (saveError) {
+      console.error(saveError);
+      setError("Не удалось обновить интересы пользователя");
+    } finally {
+      setSavingInterests(false);
+    }
+  };
+
   return (
     <main className="news-feed-page">
       <div className="news-layout">
         <aside className="nav-panel left-panel" aria-label="Навигация профиля">
           {profileLinks.map((link) => (
-            <button key={link} className="panel-link" type="button">
+            <button
+              key={link}
+              className={`panel-link ${(activeView === "news" && link === "Новости") || (activeView === "graph" && link === "Граф интересов") ? "active" : ""}`}
+              type="button"
+              onClick={() => handleNavigationClick(link)}
+            >
               {link}
             </button>
           ))}
         </aside>
 
-        <section
-          className="news-main"
-          aria-label="Лента новостей в стиле TikTok"
-        >
+        <section className="news-main" aria-label="Лента новостей в стиле TikTok">
           <header className="news-feed-header">
-            <h1>Лента новостей</h1>
-            <p>Свайпай вверх/вниз или прокручивай колесом мыши</p>
-            <span className="news-feed-counter">Реакций: {totalLikes}</span>
+            <h1>{activeView === "news" ? "Лента новостей" : "Граф интересов"}</h1>
+            <p>
+              {activeView === "news"
+                ? "Свайпай вверх/вниз или прокручивай колесом мыши"
+                : "Полноразмерное окно графа, сопоставимое по размеру с лентой"}
+            </p>
+            {activeView === "news" && <span className="news-feed-counter">Реакций: {totalLikes}</span>}
           </header>
 
-          {loading && <p className="news-state">Загрузка новостей...</p>}
-          {error && <p className="news-state news-state-error">{error}</p>}
+          {activeView === "news" && loading && <p className="news-state">Загрузка новостей...</p>}
+          {activeView === "news" && error && <p className="news-state news-state-error">{error}</p>}
 
-          {!loading && !error && (
+          {activeView === "news" && !loading && !error && (
             <div className="news-feed">
               {visibleNews.map((newsItem) => {
                 const currentLike = likes[newsItem.id] ?? 0;
                 const isSaved = Boolean(saved[newsItem.id]);
 
                 return (
-                  <article
-                    key={newsItem.id}
-                    className="news-card"
-                    style={{ backgroundImage: newsItem.color }}
-                  >
+                  <article key={newsItem.id} className="news-card" style={{ backgroundImage: newsItem.color }}>
                     <div className="news-card-overlay" />
                     <div className="news-card-content">
                       <span className="news-category">{newsItem.category}</span>
@@ -167,26 +394,16 @@ function NewsFeed() {
                         <span>{newsItem.time}</span>
                       </div>
 
-                      <a
-                        href={newsItem.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="news-link"
-                      >
+                      <a href={newsItem.url} target="_blank" rel="noreferrer" className="news-link">
                         Читать оригинал
                       </a>
                     </div>
 
-                    <aside
-                      className="news-actions"
-                      aria-label="Действия с новостью"
-                    >
+                    <aside className="news-actions" aria-label="Действия с новостью">
                       <button
                         type="button"
                         className={currentLike === 1 ? "active" : ""}
-                        onClick={() =>
-                          updateLike(newsItem.id, currentLike === 1 ? 0 : 1)
-                        }
+                        onClick={() => updateLike(newsItem.id, currentLike === 1 ? 0 : 1)}
                         aria-label="Нравится"
                       >
                         👍
@@ -194,9 +411,7 @@ function NewsFeed() {
                       <button
                         type="button"
                         className={currentLike === -1 ? "active" : ""}
-                        onClick={() =>
-                          updateLike(newsItem.id, currentLike === -1 ? 0 : -1)
-                        }
+                        onClick={() => updateLike(newsItem.id, currentLike === -1 ? 0 : -1)}
                         aria-label="Не нравится"
                       >
                         👎
@@ -214,6 +429,10 @@ function NewsFeed() {
                 );
               })}
             </div>
+          )}
+
+          {activeView === "graph" && (
+            <InterestsGraph onSelectionChange={setSelectedGraphInterests} />
           )}
         </section>
 
@@ -239,6 +458,19 @@ function NewsFeed() {
                 <span className="switch-thumb" />
               </button>
             </div>
+          </section>
+
+          <section className="nav-panel interests-panel">
+            <h3>Интересы</h3>
+            <textarea
+                value={interestsInput}
+                onChange={(e) => setInterestsInput(e.target.value)}
+                placeholder="Введите интересы через запятую"
+                rows={5}
+            />
+            <button type="button" onClick={handleSaveInterests} disabled={savingInterests}>
+              {savingInterests ? "Сохранение..." : "Обновить интересы"}
+            </button>
           </section>
         </aside>
       </div>
