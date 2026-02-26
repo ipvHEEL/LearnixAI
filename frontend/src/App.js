@@ -4,12 +4,14 @@ import CanvasBackground from "./CanvasBackground";
 import NewsFeed from "./NewsFeed";
 
 function App() {
-  const isNewsPage = window.location.pathname === "/news";
+  const currentPath = window.location.pathname;
+  const isNewsPage = currentPath === "/news" || currentPath === "/graph";
+  const initialView = currentPath === "/graph" ? "graph" : "news";
 
   return (
     <>
       <CanvasBackground />
-      {isNewsPage ? <NewsFeed /> : <LoginForm />}
+      {isNewsPage ? <NewsFeed initialView={initialView} /> : <LoginForm />}
     </>
   );
 }
