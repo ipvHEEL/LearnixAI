@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import "./NewsFeed.css";
+import InterestsGraph from "./InterestsGraph";
 
 const profileLinks = [
   "Моя страница",
@@ -64,7 +65,8 @@ function NewsFeed() {
   const [news, setNews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [interestsInput, setInterestsInput] = useState("");
+  const [selectedInterests, setSelectedInterests] = useState([]);
+  const [customInterest, setCustomInterest] = useState("");
   const [savingInterests, setSavingInterests] = useState(false);
 
   const token = localStorage.getItem("jwtToken") ?? "";
@@ -86,7 +88,7 @@ function NewsFeed() {
 
       if (interestsRes.ok) {
         const interestsData = await interestsRes.json();
-        setInterestsInput((interestsData.interests ?? []).join(", "));
+        setSelectedInterests(interestsData.interests ?? []);
       }
 
       const res = await fetch("http://127.0.0.1:8000/news", {
@@ -140,18 +142,13 @@ function NewsFeed() {
     setSavingInterests(true);
     setError("");
     try {
-      const parsedInterests = interestsInput
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean);
-
       const res = await fetch("http://127.0.0.1:8000/interests", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ interests: parsedInterests }),
+        body: JSON.stringify({ interests: selectedInterests }),
       });
 
       if (!res.ok) {
@@ -171,6 +168,15 @@ function NewsFeed() {
     } finally {
       setSavingInterests(false);
     }
+  };
+
+  const addCustomInterest = () => {
+    const prepared = customInterest.trim();
+    if (!prepared || selectedInterests.includes(prepared)) {
+      return;
+    }
+    setSelectedInterests((prev) => [...prev, prepared]);
+    setCustomInterest("");
   };
 
   return (
@@ -277,12 +283,34 @@ function NewsFeed() {
 
           <section className="nav-panel interests-panel">
             <h3>Интересы</h3>
-            <textarea
-                value={interestsInput}
-                onChange={(e) => setInterestsInput(e.target.value)}
-                placeholder="Введите интересы через запятую"
-                rows={5}
-            />
+            <InterestsGraph selectedInterests={selectedInterests} onSelectionChange={setSelectedInterests} />
+            <div className="selected-interests-list">
+              {selectedInterests.length > 0 ? (
+                selectedInterests.map((interest) => (
+                  <button
+                    key={interest}
+                    type="button"
+                    className="interest-chip"
+                    onClick={() => setSelectedInterests((prev) => prev.filter((item) => item !== interest))}
+                  >
+                    {interest} ×
+                  </button>
+                ))
+              ) : (
+                <span className="interest-empty">Выберите интересы в графе</span>
+              )}
+            </div>
+            <div className="interest-input-row">
+              <input
+                type="text"
+                value={customInterest}
+                onChange={(event) => setCustomInterest(event.target.value)}
+                placeholder="Добавить свой интерес"
+              />
+              <button type="button" onClick={addCustomInterest}>
+                +
+              </button>
+            </div>
             <button type="button" onClick={handleSaveInterests} disabled={savingInterests}>
               {savingInterests ? "Сохранение..." : "Обновить интересы"}
             </button>
