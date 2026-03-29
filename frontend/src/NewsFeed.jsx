@@ -214,9 +214,9 @@ function InterestsGraph({ onSelectionChange }) {
 
 function NewsFeed({ initialView = "news" }) {
   const [likes, setLikes] = useState({});
-  const [saved, setSaved] = useState({});
   const [interestingFirst, setInterestingFirst] = useState(true);
   const [news, setNews] = useState([]);
+  const [likedPosts, setLikedPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [interestsInput, setInterestsInput] = useState("");
@@ -266,6 +266,17 @@ function NewsFeed({ initialView = "news" }) {
       if (lastViewedRes.ok) {
         const lastViewedData = await lastViewedRes.json();
         setLastViewedPost(lastViewedData.last_viewed_post ?? null);
+      }
+
+      const likedPostsRes = await fetch("http://127.0.0.1:8000/liked-posts", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (likedPostsRes.ok) {
+        const likedPostsData = await likedPostsRes.json();
+        const liked = likedPostsData.liked_posts ?? [];
+        setLikedPosts(liked);
+        setLikes(Object.fromEntries(liked.map((post) => [post.post_id, 1])));
       }
     } catch (fetchError) {
       console.error(fetchError);
@@ -335,8 +346,67 @@ function NewsFeed({ initialView = "news" }) {
     setLikes((prev) => ({ ...prev, [id]: value }));
   };
 
-  const toggleSave = (id) => {
-    setSaved((prev) => ({ ...prev, [id]: !prev[id] }));
+  const refreshLikedPosts = useCallback(async () => {
+    const response = await fetch("http://127.0.0.1:8000/liked-posts", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!response.ok) {
+      throw new Error("Не удалось загрузить лайкнутые посты");
+    }
+
+    const data = await response.json();
+    const liked = data.liked_posts ?? [];
+    setLikedPosts(liked);
+    return liked;
+  }, [token]);
+
+  const persistLike = async (newsItem, nextValue) => {
+    const previousValue = likes[newsItem.id] ?? 0;
+    updateLike(newsItem.id, nextValue);
+
+    try {
+      if (nextValue === 1) {
+        const response = await fetch("http://127.0.0.1:8000/liked-posts", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            post_id: newsItem.id,
+            post_url: newsItem.url,
+            post_title: newsItem.title,
+            post_summary: newsItem.summary,
+            post_source: newsItem.source,
+            post_time: newsItem.time,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error("Не удалось сохранить лайк");
+        }
+      } else if (previousValue === 1) {
+        const response = await fetch(`http://127.0.0.1:8000/liked-posts?post_id=${encodeURIComponent(newsItem.id)}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!response.ok) {
+          throw new Error("Не удалось удалить лайк");
+        }
+      }
+
+      const liked = await refreshLikedPosts();
+      setLikes((prev) => ({
+        ...prev,
+        ...Object.fromEntries(liked.map((post) => [post.post_id, 1])),
+      }));
+    } catch (likeError) {
+      console.error(likeError);
+      updateLike(newsItem.id, previousValue);
+      setError("Не удалось сохранить лайк. Попробуйте снова.");
+    }
   };
 
   const handleSaveInterests = async () => {
@@ -456,7 +526,6 @@ function NewsFeed({ initialView = "news" }) {
               {visibleNews.length === 0 && <p className="news-state">По вашему запросу ничего не найдено.</p>}
               {visibleNews.map((newsItem) => {
                 const currentLike = likes[newsItem.id] ?? 0;
-                const isSaved = Boolean(saved[newsItem.id]);
 
                 return (
                   <article key={newsItem.id} className="news-card" style={{ backgroundImage: newsItem.color }}>
@@ -486,7 +555,7 @@ function NewsFeed({ initialView = "news" }) {
                       <button
                         type="button"
                         className={currentLike === 1 ? "active" : ""}
-                        onClick={() => updateLike(newsItem.id, currentLike === 1 ? 0 : 1)}
+                        onClick={() => persistLike(newsItem, currentLike === 1 ? 0 : 1)}
                         aria-label="Нравится"
                       >
                         👍
@@ -494,18 +563,10 @@ function NewsFeed({ initialView = "news" }) {
                       <button
                         type="button"
                         className={currentLike === -1 ? "active" : ""}
-                        onClick={() => updateLike(newsItem.id, currentLike === -1 ? 0 : -1)}
+                        onClick={() => persistLike(newsItem, currentLike === -1 ? 0 : -1)}
                         aria-label="Не нравится"
                       >
                         👎
-                      </button>
-                      <button
-                        type="button"
-                        className={isSaved ? "active" : ""}
-                        onClick={() => toggleSave(newsItem.id)}
-                        aria-label="Сохранить"
-                      >
-                        📌
                       </button>
                     </aside>
                   </article>
@@ -554,6 +615,22 @@ function NewsFeed({ initialView = "news" }) {
             <button type="button" onClick={handleSaveInterests} disabled={savingInterests}>
               {savingInterests ? "Сохранение..." : "Обновить интересы"}
             </button>
+          </section>
+
+          <section className="nav-panel liked-posts-panel">
+            <h3>Лайкнутые посты</h3>
+            {likedPosts.length === 0 && <p>Вы пока не лайкнули ни одного поста.</p>}
+            {likedPosts.length > 0 && (
+              <ul>
+                {likedPosts.map((post) => (
+                  <li key={post.post_id}>
+                    <a href={post.post_url ?? "#"} target="_blank" rel="noreferrer">
+                      {post.post_title ?? "Пост без названия"}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
         </aside>
       </div>

@@ -46,6 +46,20 @@ class UserRepository:
                     UNIQUE (user_id, interest),
                     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
                 );
+
+                CREATE TABLE IF NOT EXISTS user_liked_posts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    post_id TEXT NOT NULL,
+                    post_url TEXT,
+                    post_title TEXT,
+                    post_summary TEXT,
+                    post_source TEXT,
+                    post_time TEXT,
+                    liked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE (user_id, post_id),
+                    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+                );
                 """
             )
 
@@ -130,3 +144,68 @@ class UserRepository:
             ).fetchone()
 
         return row["current_jwt"] if row else None
+
+    def save_liked_post(self, user_id: int, post: dict[str, str | None]) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO user_liked_posts (
+                    user_id,
+                    post_id,
+                    post_url,
+                    post_title,
+                    post_summary,
+                    post_source,
+                    post_time
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(user_id, post_id) DO UPDATE SET
+                    post_url = excluded.post_url,
+                    post_title = excluded.post_title,
+                    post_summary = excluded.post_summary,
+                    post_source = excluded.post_source,
+                    post_time = excluded.post_time,
+                    liked_at = CURRENT_TIMESTAMP
+                """,
+                (
+                    user_id,
+                    post["post_id"],
+                    post.get("post_url"),
+                    post.get("post_title"),
+                    post.get("post_summary"),
+                    post.get("post_source"),
+                    post.get("post_time"),
+                ),
+            )
+
+    def remove_liked_post(self, user_id: int, post_id: str) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "DELETE FROM user_liked_posts WHERE user_id = ? AND post_id = ?",
+                (user_id, post_id),
+            )
+
+    def get_liked_posts(self, user_id: int) -> list[dict[str, str | None]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT post_id, post_url, post_title, post_summary, post_source, post_time, liked_at
+                FROM user_liked_posts
+                WHERE user_id = ?
+                ORDER BY liked_at DESC
+                """,
+                (user_id,),
+            ).fetchall()
+
+        return [
+            {
+                "post_id": row["post_id"],
+                "post_url": row["post_url"],
+                "post_title": row["post_title"],
+                "post_summary": row["post_summary"],
+                "post_source": row["post_source"],
+                "post_time": row["post_time"],
+                "liked_at": row["liked_at"],
+            }
+            for row in rows
+        ]
