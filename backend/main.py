@@ -46,6 +46,15 @@ class LastViewedPostRequest(BaseModel):
     post_title: str | None = None
 
 
+class LikedPostRequest(BaseModel):
+    post_id: str
+    post_url: str | None = None
+    post_title: str | None = None
+    post_summary: str | None = None
+    post_source: str | None = None
+    post_time: str | None = None
+
+
 def _extract_token(authorization: str | None) -> str:
     if authorization is None or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
@@ -158,3 +167,37 @@ def get_last_viewed_post(authorization: str | None = Header(default=None)):
         "user_id": user.user_id,
         "last_viewed_post": payload,
     }
+
+
+@app.get("/liked-posts")
+def get_liked_posts(authorization: str | None = Header(default=None)):
+    user = _authorized_user(authorization)
+    liked_posts = auth_service.user_repository.get_liked_posts(user.user_id)
+    return {"user_id": user.user_id, "liked_posts": liked_posts}
+
+
+@app.post("/liked-posts")
+def save_liked_post(data: LikedPostRequest, authorization: str | None = Header(default=None)):
+    user = _authorized_user(authorization)
+    auth_service.user_repository.save_liked_post(
+        user.user_id,
+        {
+            "post_id": data.post_id,
+            "post_url": data.post_url,
+            "post_title": data.post_title,
+            "post_summary": data.post_summary,
+            "post_source": data.post_source,
+            "post_time": data.post_time,
+        },
+    )
+    return {"status": "ok"}
+
+
+@app.delete("/liked-posts")
+def delete_liked_post(
+    post_id: str = Query(..., min_length=1),
+    authorization: str | None = Header(default=None),
+):
+    user = _authorized_user(authorization)
+    auth_service.user_repository.remove_liked_post(user.user_id, post_id)
+    return {"status": "ok"}

@@ -265,6 +265,27 @@
   background: #c9d0ff;
 }
 
+.liked-posts-panel p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.liked-posts-panel ul {
+  margin: 8px 0 0;
+  padding-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.liked-posts-panel a {
+  color: #d8ddff;
+  font-size: 0.9rem;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 @media (max-width: 1220px) {
   .news-layout {
     grid-template-columns: 1fr;
