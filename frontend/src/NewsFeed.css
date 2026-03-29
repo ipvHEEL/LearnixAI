@@ -104,6 +104,24 @@
   font-size: 0.95rem;
 }
 
+.search-row {
+  margin-top: 8px;
+}
+
+.search-row input {
+  width: min(460px, 96%);
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(11, 12, 18, 0.8);
+  color: #fff;
+  padding: 10px 14px;
+  font-size: 0.96rem;
+}
+
+.search-row input::placeholder {
+  color: rgba(255, 255, 255, 0.62);
+}
+
 .last-viewed-link {
   display: block;
   margin-top: 8px;

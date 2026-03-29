@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./NewsFeed.css";
 
 const profileLinks = ["Моя страница", "Новости", "Граф интересов", "Сообщения", "Друзья", "Сообщества", "Фотографии", "Музыка"];
@@ -224,6 +224,7 @@ function NewsFeed({ initialView = "news" }) {
   const [activeView, setActiveView] = useState(initialView);
   const [selectedGraphInterests, setSelectedGraphInterests] = useState([]);
   const [lastViewedPost, setLastViewedPost] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const token = localStorage.getItem("jwtToken") ?? "";
 
@@ -239,14 +240,13 @@ function NewsFeed({ initialView = "news" }) {
     }
   };
 
-  const loadNewsAndInterests = async () => {
+  const loadProfileMeta = useCallback(async () => {
     if (!token) {
       setError("Сессия не найдена. Выполните вход снова.");
       setLoading(false);
       return;
     }
 
-    setLoading(true);
     setError("");
 
     try {
@@ -267,8 +267,28 @@ function NewsFeed({ initialView = "news" }) {
         const lastViewedData = await lastViewedRes.json();
         setLastViewedPost(lastViewedData.last_viewed_post ?? null);
       }
+    } catch (fetchError) {
+      console.error(fetchError);
+      setError("Не удалось получить профиль пользователя");
+    }
+  }, [token]);
 
-      const res = await fetch("http://127.0.0.1:8000/news", {
+  const loadNews = useCallback(async (query = "") => {
+    if (!token) {
+      setError("Сессия не найдена. Выполните вход снова.");
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const trimmedQuery = query.trim();
+      const newsUrl = trimmedQuery
+        ? `http://127.0.0.1:8000/news?search=${encodeURIComponent(trimmedQuery)}`
+        : "http://127.0.0.1:8000/news";
+      const res = await fetch(newsUrl, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -291,11 +311,15 @@ function NewsFeed({ initialView = "news" }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
 
   useEffect(() => {
-    loadNewsAndInterests();
-  }, []);
+    loadProfileMeta();
+  }, [loadProfileMeta]);
+
+  useEffect(() => {
+    loadNews(searchQuery);
+  }, [loadNews, searchQuery]);
 
   const totalLikes = useMemo(() => Object.values(likes).reduce((acc, current) => acc + current, 0), [likes]);
 
@@ -346,7 +370,8 @@ function NewsFeed({ initialView = "news" }) {
         throw new Error("Не удалось обновить интересы");
       }
 
-      await loadNewsAndInterests();
+      await loadProfileMeta();
+      await loadNews(searchQuery);
     } catch (saveError) {
       console.error(saveError);
       setError("Не удалось обновить интересы пользователя");
@@ -405,6 +430,17 @@ function NewsFeed({ initialView = "news" }) {
                 : "Полноразмерное окно графа, сопоставимое по размеру с лентой"}
             </p>
             {activeView === "news" && <span className="news-feed-counter">Реакций: {totalLikes}</span>}
+            {activeView === "news" && (
+              <div className="search-row">
+                <input
+                  type="search"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Поиск статей по запросу"
+                  aria-label="Поиск статей"
+                />
+              </div>
+            )}
             {activeView === "news" && lastViewedPost?.post_url && (
               <a className="last-viewed-link" href={lastViewedPost.post_url} target="_blank" rel="noreferrer">
                 Продолжить: {lastViewedPost.post_title ?? "Последний просмотренный пост"}
@@ -417,6 +453,7 @@ function NewsFeed({ initialView = "news" }) {
 
           {activeView === "news" && !loading && !error && (
             <div className="news-feed">
+              {visibleNews.length === 0 && <p className="news-state">По вашему запросу ничего не найдено.</p>}
               {visibleNews.map((newsItem) => {
                 const currentLike = likes[newsItem.id] ?? 0;
                 const isSaved = Boolean(saved[newsItem.id]);

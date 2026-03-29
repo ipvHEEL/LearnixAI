@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, Field
 
@@ -85,11 +85,24 @@ def login(data: LoginRequest):
 
 
 @app.get("/news")
-def news(authorization: str | None = Header(default=None)):
+def news(
+    authorization: str | None = Header(default=None),
+    search: str | None = Query(default=None, max_length=200),
+):
     user = _authorized_user(authorization)
 
     xml_list = load_all_rss()
     articles = parse_articles(xml_list)
+    normalized_search = (search or "").strip().lower()
+
+    if normalized_search:
+        articles = [
+            article
+            for article in articles
+            if normalized_search in article.get("title", "").lower()
+            or normalized_search in article.get("description", "").lower()
+            or normalized_search in article.get("full_text", "").lower()
+        ]
 
     interests = user.interests
 
@@ -102,6 +115,7 @@ def news(authorization: str | None = Header(default=None)):
     return {
         "learner": user.user_name,
         "interests": interests,
+        "search": search or "",
         "total_articles": len(articles),
         "articles": ranked,
     }
