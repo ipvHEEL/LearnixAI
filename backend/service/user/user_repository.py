@@ -1,4 +1,5 @@
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -44,6 +45,16 @@ class UserRepository:
                     user_id INTEGER NOT NULL,
                     interest TEXT NOT NULL,
                     UNIQUE (user_id, interest),
+                    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+                );
+
+                CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    token_hash TEXT NOT NULL,
+                    expires_at TIMESTAMP NOT NULL,
+                    used_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
                 );
                 """
@@ -104,6 +115,18 @@ class UserRepository:
 
         return self.get_user_by_id(row["user_id"])
 
+    def get_user_by_email(self, email: str) -> Optional[User]:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT user_id FROM users WHERE email = ?",
+                (email,),
+            ).fetchone()
+
+        if row is None:
+            return None
+
+        return self.get_user_by_id(row["user_id"])
+
     def update_interests(self, user_id: int, interests: list[str]) -> list[str]:
         normalized = sorted({interest.strip() for interest in interests if interest and interest.strip()})
         with self._connect() as conn:
@@ -130,3 +153,57 @@ class UserRepository:
             ).fetchone()
 
         return row["current_jwt"] if row else None
+
+    def update_password_hash(self, user_id: int, password_hash: str) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE users SET password_hash = ?, current_jwt = NULL WHERE user_id = ?",
+                (password_hash, user_id),
+            )
+
+    def create_password_reset_token(self, user_id: int, token_hash: str, expires_at: str) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+                VALUES (?, ?, ?)
+                """,
+                (user_id, token_hash, expires_at),
+            )
+
+    def consume_password_reset_token(self, token_hash: str) -> Optional[int]:
+        now_iso = datetime.now(timezone.utc).isoformat()
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT id, user_id, expires_at, used_at
+                FROM password_reset_tokens
+                WHERE token_hash = ?
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (token_hash,),
+            ).fetchone()
+
+            if row is None:
+                return None
+
+            expires_at = row["expires_at"]
+            used_at = row["used_at"]
+            expires_at_dt = datetime.fromisoformat(expires_at)
+            now_dt = datetime.fromisoformat(now_iso)
+            if used_at is not None or expires_at_dt <= now_dt:
+                return None
+
+            conn.execute(
+                "UPDATE password_reset_tokens SET used_at = ? WHERE id = ?",
+                (now_iso, row["id"]),
+            )
+            return int(row["user_id"])
+
+    def revoke_password_reset_token(self, token_hash: str) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "DELETE FROM password_reset_tokens WHERE token_hash = ?",
+                (token_hash,),
+            )
