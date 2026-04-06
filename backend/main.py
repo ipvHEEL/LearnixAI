@@ -88,10 +88,10 @@ def login(data: LoginRequest):
 def news(authorization: str | None = Header(default=None)):
     user = _authorized_user(authorization)
 
-    xml_list = load_all_rss()
-    articles = parse_articles(xml_list)
-
     interests = user.interests
+
+    xml_list = load_all_rss(interests=interests)
+    articles = parse_articles(xml_list)
 
     ranked = rank_articles_nn(
         articles=articles,

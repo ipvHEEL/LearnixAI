@@ -14,10 +14,19 @@ def rank_articles_nn(
     if not articles:
         return []
 
+    normalized_interests = [interest.strip() for interest in interests if interest and interest.strip()]
+    if not normalized_interests:
+        fallback = []
+        for article in articles[:max(top_k, 0)]:
+            article_copy = article.copy()
+            article_copy["relevance_score"] = 0.0
+            fallback.append(article_copy)
+        return fallback
+
     texts = [a["full_text"] for a in articles]
 
     article_embeddings = _model.encode(texts, convert_to_tensor=True)
-    interest_embedding = _model.encode(" ".join(interests), convert_to_tensor=True)
+    interest_embedding = _model.encode(" ".join(normalized_interests), convert_to_tensor=True)
 
     scores = util.cos_sim(interest_embedding, article_embeddings)[0]
 
@@ -29,4 +38,4 @@ def rank_articles_nn(
 
     ranked.sort(key=lambda x: x["relevance_score"], reverse=True)
 
-    return ranked   
+    return ranked[:max(top_k, 0)]
