@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import "./NewsFeed.css";
 
-const profileLinks = ["Моя страница", "Новости", "Граф интересов", "Сообщения", "Друзья", "Сообщества", "Фотографии", "Музыка"];
+const profileLinks = ["🔍 Поиск", "Новости", "Граф интересов", "Друзья", "Музыка", "Фотографии"];
 
-const sectionLinks = ["Новости", "Фотографии", "Подкасты", "Рекомендации", "Поиск"];
+const sectionLinks = ["Новости", "Поиск", "Граф интересов"];
 
 const cardGradients = [
   "linear-gradient(180deg, #7a2ef7 0%, #820f85 56%, #280020 100%)",
@@ -224,8 +224,14 @@ function NewsFeed({ initialView = "news" }) {
   const [activeView, setActiveView] = useState(initialView);
   const [selectedGraphInterests, setSelectedGraphInterests] = useState([]);
   const [lastViewedPost, setLastViewedPost] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [randomizedNews, setRandomizedNews] = useState([]);
 
   const token = localStorage.getItem("jwtToken") ?? "";
+  const isLinkActive = (link) =>
+    (activeView === "news" && link === "Новости") ||
+    (activeView === "graph" && link === "Граф интересов") ||
+    (activeView === "search" && (link === "🔍 Поиск" || link === "Поиск"));
 
   const handleNavigationClick = (link) => {
     if (link === "Новости") {
@@ -236,6 +242,11 @@ function NewsFeed({ initialView = "news" }) {
     if (link === "Граф интересов") {
       setActiveView("graph");
       window.history.replaceState({}, "", "/graph");
+    }
+
+    if (link === "🔍 Поиск" || link === "Поиск") {
+      setActiveView("search");
+      window.history.replaceState({}, "", "/news");
     }
   };
 
@@ -285,6 +296,13 @@ function NewsFeed({ initialView = "news" }) {
       const data = await res.json();
       const normalizedNews = (data.articles ?? []).map(toNewsItem);
       setNews(normalizedNews);
+
+      const shuffledNews = [...normalizedNews];
+      for (let i = shuffledNews.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffledNews[i], shuffledNews[j]] = [shuffledNews[j], shuffledNews[i]];
+      }
+      setRandomizedNews(shuffledNews);
     } catch (fetchError) {
       console.error(fetchError);
       setError("Не удалось получить новости с сервера");
@@ -306,6 +324,17 @@ function NewsFeed({ initialView = "news" }) {
 
     return [...news].sort((a, b) => b.relevanceScore - a.relevanceScore);
   }, [news, interestingFirst]);
+
+  const visibleSearchNews = useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    if (!normalizedQuery) {
+      return randomizedNews;
+    }
+
+    return randomizedNews.filter((item) =>
+      [item.title, item.summary, item.source].some((field) => field.toLowerCase().includes(normalizedQuery))
+    );
+  }, [randomizedNews, searchQuery]);
 
   const updateLike = (id, value) => {
     setLikes((prev) => ({ ...prev, [id]: value }));
@@ -387,7 +416,7 @@ function NewsFeed({ initialView = "news" }) {
           {profileLinks.map((link) => (
             <button
               key={link}
-              className={`panel-link ${(activeView === "news" && link === "Новости") || (activeView === "graph" && link === "Граф интересов") ? "active" : ""}`}
+              className={`panel-link ${isLinkActive(link) ? "active" : ""}`}
               type="button"
               onClick={() => handleNavigationClick(link)}
             >
@@ -398,11 +427,13 @@ function NewsFeed({ initialView = "news" }) {
 
         <section className="news-main" aria-label="Лента новостей в стиле TikTok">
           <header className="news-feed-header">
-            <h1>{activeView === "news" ? "Лента новостей" : "Граф интересов"}</h1>
+            <h1>{activeView === "news" ? "Лента новостей" : activeView === "graph" ? "Граф интересов" : "Поиск новостей"}</h1>
             <p>
               {activeView === "news"
                 ? "Свайпай вверх/вниз или прокручивай колесом мыши"
-                : "Полноразмерное окно графа, сопоставимое по размеру с лентой"}
+                : activeView === "graph"
+                  ? "Полноразмерное окно графа, сопоставимое по размеру с лентой"
+                  : "Обычный поиск по ключевым словам без эмбеддингов"}
             </p>
             {activeView === "news" && <span className="news-feed-counter">Реакций: {totalLikes}</span>}
             {activeView === "news" && lastViewedPost?.post_url && (
@@ -412,8 +443,8 @@ function NewsFeed({ initialView = "news" }) {
             )}
           </header>
 
-          {activeView === "news" && loading && <p className="news-state">Загрузка новостей...</p>}
-          {activeView === "news" && error && <p className="news-state news-state-error">{error}</p>}
+          {(activeView === "news" || activeView === "search") && loading && <p className="news-state">Загрузка новостей...</p>}
+          {(activeView === "news" || activeView === "search") && error && <p className="news-state news-state-error">{error}</p>}
 
           {activeView === "news" && !loading && !error && (
             <div className="news-feed">
@@ -477,6 +508,54 @@ function NewsFeed({ initialView = "news" }) {
             </div>
           )}
 
+          {activeView === "search" && !loading && !error && (
+            <>
+              <div className="search-toolbar">
+                <span className="search-icon" aria-hidden="true">
+                  🔍
+                </span>
+                <input
+                  type="search"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Введите ключевые слова: AI, стартапы, космос..."
+                />
+              </div>
+
+              {visibleSearchNews.length === 0 ? (
+                <p className="news-state">По вашему запросу ничего не найдено.</p>
+              ) : (
+                <div className="news-feed">
+                  {visibleSearchNews.map((newsItem) => (
+                    <article key={newsItem.id} className="news-card" style={{ backgroundImage: newsItem.color }}>
+                      <div className="news-card-overlay" />
+                      <div className="news-card-content">
+                        <span className="news-category">Случайный порядок</span>
+                        <h2>{newsItem.title}</h2>
+                        <p>{newsItem.summary}</p>
+
+                        <div className="news-meta">
+                          <span>{newsItem.source}</span>
+                          <span>{newsItem.time}</span>
+                        </div>
+
+                        <a
+                          href={newsItem.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="news-link"
+                          onClick={() => handleTrackLastViewedPost(newsItem)}
+                        >
+                          Читать оригинал
+                        </a>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
           {activeView === "graph" && (
             <InterestsGraph onSelectionChange={setSelectedGraphInterests} />
           )}
@@ -486,7 +565,7 @@ function NewsFeed({ initialView = "news" }) {
           <section className="nav-panel right-panel">
             <h3>Разделы</h3>
             {sectionLinks.map((link) => (
-              <button key={link} className="panel-link" type="button">
+              <button key={link} className={`panel-link ${isLinkActive(link) ? "active" : ""}`} type="button" onClick={() => handleNavigationClick(link)}>
                 {link}
               </button>
             ))}
