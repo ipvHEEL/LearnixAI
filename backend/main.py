@@ -46,6 +46,15 @@ class LastViewedPostRequest(BaseModel):
     post_title: str | None = None
 
 
+class PasswordRecoveryRequest(BaseModel):
+    email: EmailStr
+
+
+class PasswordResetConfirmRequest(BaseModel):
+    token: str
+    new_password: str = Field(min_length=6)
+
+
 def _extract_token(authorization: str | None) -> str:
     if authorization is None or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
@@ -64,7 +73,7 @@ def _authorized_user(authorization: str | None):
 def register(data: RegisterRequest):
     user = auth_service.register(data.login, str(data.email), data.password)
     if user is None:
-        raise HTTPException(status_code=409, detail="User already exists")
+        raise HTTPException(status_code=409, detail="User with this login or email already exists")
     return {"user_id": user.user_id, "user_name": user.user_name, "email": user.email}
 
 
@@ -82,6 +91,24 @@ def login(data: LoginRequest):
         "access_token": login_data["token"],
         "token_type": "Bearer",
     }
+
+
+@app.post("/password-recovery/request")
+def request_password_recovery(data: PasswordRecoveryRequest):
+    _ = auth_service.request_password_reset(str(data.email))
+    # Always return a generic response to prevent account/email enumeration.
+    return {
+        "status": "ok",
+        "message": "If an account with that email exists, reset instructions were sent.",
+    }
+
+
+@app.post("/password-recovery/confirm")
+def confirm_password_recovery(data: PasswordResetConfirmRequest):
+    updated = auth_service.reset_password(data.token, data.new_password)
+    if not updated:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+    return {"status": "ok", "message": "Password was updated successfully"}
 
 
 @app.get("/news")
