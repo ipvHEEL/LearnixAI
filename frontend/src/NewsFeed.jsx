@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import "./NewsFeed.css";
 
-const profileLinks = ["Моя страница", "Новости", "Граф интересов", "Сообщения", "Друзья", "Сообщества", "Фотографии", "Музыка"];
+const profileLinks = ["Моя страница", "Новости", "Граф интересов", "Сохраненное", "Сообщения", "Друзья", "Сообщества", "Фотографии", "Музыка"];
 
 const sectionLinks = ["Новости", "Фотографии", "Подкасты", "Рекомендации", "Поиск"];
 
@@ -22,6 +22,9 @@ const decodeHtml = (text = "") =>
 
 const toNewsItem = (article, index) => {
   let source = "Источник";
+  const stablePostId =
+    article.url?.trim() ||
+    `article-${article.title ?? "untitled"}-${article.publishedAt ?? index}`;
 
   try {
     source = new URL(article.url).hostname.replace("www.", "");
@@ -30,7 +33,7 @@ const toNewsItem = (article, index) => {
   }
 
   return {
-    id: `${article.url ?? "article"}-${index}`,
+    id: stablePostId,
     category: article.relevance_score >= 0.5 ? "Высокий интерес" : "Рекомендовано",
     title: article.title ?? "Без названия",
     summary: decodeHtml(article.description ?? article.full_text ?? ""),
@@ -214,7 +217,7 @@ function InterestsGraph({ onSelectionChange }) {
 
 function NewsFeed({ initialView = "news" }) {
   const [likes, setLikes] = useState({});
-  const [saved, setSaved] = useState({});
+  const [savedPosts, setSavedPosts] = useState({});
   const [interestingFirst, setInterestingFirst] = useState(true);
   const [news, setNews] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -225,7 +228,19 @@ function NewsFeed({ initialView = "news" }) {
   const [selectedGraphInterests, setSelectedGraphInterests] = useState([]);
   const [lastViewedPost, setLastViewedPost] = useState(null);
 
-  const token = localStorage.getItem("jwtToken") ?? "";
+  const getAuthHeaders = (withJson = false) => {
+    const token = localStorage.getItem("jwtToken");
+    if (!token) {
+      throw new Error("NO_AUTH_TOKEN");
+    }
+
+    return withJson
+      ? {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        }
+      : { Authorization: `Bearer ${token}` };
+  };
 
   const handleNavigationClick = (link) => {
     if (link === "Новости") {
@@ -237,57 +252,88 @@ function NewsFeed({ initialView = "news" }) {
       setActiveView("graph");
       window.history.replaceState({}, "", "/graph");
     }
+
+    if (link === "Сохраненное") {
+      setActiveView("saved");
+      window.history.replaceState({}, "", "/saved");
+    }
   };
 
   const loadNewsAndInterests = async () => {
-    if (!token) {
-      setError("Сессия не найдена. Выполните вход снова.");
-      setLoading(false);
-      return;
-    }
-
     setLoading(true);
     setError("");
 
     try {
-      const interestsRes = await fetch("http://127.0.0.1:8000/interests", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const authHeaders = getAuthHeaders();
+      const [interestsRes, lastViewedRes, newsRes, savedPostsRes] = await Promise.all([
+        fetch("http://127.0.0.1:8000/interests", {
+          headers: authHeaders,
+        }),
+        fetch("http://127.0.0.1:8000/session/last-viewed-post", {
+          headers: authHeaders,
+        }),
+        fetch("http://127.0.0.1:8000/news", {
+          headers: authHeaders,
+        }),
+        fetch("http://127.0.0.1:8000/saved-posts", {
+          headers: authHeaders,
+        }),
+      ]);
+
+      const responses = [interestsRes, lastViewedRes, newsRes, savedPostsRes];
+      if (responses.some((response) => response.status === 401)) {
+        localStorage.removeItem("jwtToken");
+        localStorage.removeItem("userId");
+        window.location.href = "/";
+        return;
+      }
 
       if (interestsRes.ok) {
         const interestsData = await interestsRes.json();
         setInterestsInput((interestsData.interests ?? []).join(", "));
       }
 
-      const lastViewedRes = await fetch("http://127.0.0.1:8000/session/last-viewed-post", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
       if (lastViewedRes.ok) {
         const lastViewedData = await lastViewedRes.json();
         setLastViewedPost(lastViewedData.last_viewed_post ?? null);
       }
 
-      const res = await fetch("http://127.0.0.1:8000/news", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!res.ok) {
-        if (res.status === 401) {
-          localStorage.removeItem("jwtToken");
-          localStorage.removeItem("userId");
-          window.location.href = "/";
-          return;
-        }
-        throw new Error("Ошибка загрузки новостей");
+      if (savedPostsRes.ok) {
+        const savedPostsData = await savedPostsRes.json();
+        const mapped = (savedPostsData.saved_posts ?? []).reduce((acc, item) => {
+          acc[item.post_id] = {
+            id: item.post_id,
+            category: item.post_category ?? "Сохранено",
+            title: item.post_title ?? "Без названия",
+            summary: item.post_summary ?? "",
+            source: item.post_source ?? "Источник",
+            time: item.post_time ?? "Без даты",
+            color: item.post_color ?? cardGradients[0],
+            relevanceScore: item.relevance_score ?? 0,
+            url: item.post_url ?? "#",
+            savedAt: item.saved_at ?? "",
+          };
+          return acc;
+        }, {});
+        setSavedPosts(mapped);
       }
 
-      const data = await res.json();
-      const normalizedNews = (data.articles ?? []).map(toNewsItem);
-      setNews(normalizedNews);
+      if (newsRes.ok) {
+        const data = await newsRes.json();
+        const normalizedNews = (data.articles ?? []).map(toNewsItem);
+        setNews(normalizedNews);
+      } else {
+        setError("Не удалось получить новости с сервера");
+      }
     } catch (fetchError) {
       console.error(fetchError);
-      setError("Не удалось получить новости с сервера");
+      if (fetchError.message === "NO_AUTH_TOKEN") {
+        localStorage.removeItem("jwtToken");
+        localStorage.removeItem("userId");
+        window.location.href = "/";
+        return;
+      }
+      setError("Не удалось загрузить данные с сервера");
     } finally {
       setLoading(false);
     }
@@ -307,12 +353,80 @@ function NewsFeed({ initialView = "news" }) {
     return [...news].sort((a, b) => b.relevanceScore - a.relevanceScore);
   }, [news, interestingFirst]);
 
+  const savedNews = useMemo(
+    () =>
+      Object.values(savedPosts).sort((a, b) => {
+        const aTs = a.savedAt ? new Date(a.savedAt).getTime() : 0;
+        const bTs = b.savedAt ? new Date(b.savedAt).getTime() : 0;
+        return bTs - aTs;
+      }),
+    [savedPosts],
+  );
+
   const updateLike = (id, value) => {
     setLikes((prev) => ({ ...prev, [id]: value }));
   };
 
-  const toggleSave = (id) => {
-    setSaved((prev) => ({ ...prev, [id]: !prev[id] }));
+  const toggleSave = async (newsItem) => {
+    const isSaved = Boolean(savedPosts[newsItem.id]);
+
+    try {
+      const authHeaders = getAuthHeaders();
+      if (isSaved) {
+        const deleteRes = await fetch(`http://127.0.0.1:8000/saved-posts?post_id=${encodeURIComponent(newsItem.id)}`, {
+          method: "DELETE",
+          headers: authHeaders,
+        });
+
+        if (!deleteRes.ok && deleteRes.status !== 404) {
+          throw new Error("Не удалось удалить пост из сохраненного");
+        }
+
+        setSavedPosts((prev) => {
+          const next = { ...prev };
+          delete next[newsItem.id];
+          return next;
+        });
+        return;
+      }
+
+      const saveRes = await fetch("http://127.0.0.1:8000/saved-posts", {
+        method: "PUT",
+        headers: getAuthHeaders(true),
+        body: JSON.stringify({
+          post_id: newsItem.id,
+          post_url: newsItem.url,
+          post_title: newsItem.title,
+          post_summary: newsItem.summary,
+          post_category: newsItem.category,
+          post_source: newsItem.source,
+          post_time: newsItem.time,
+          post_color: newsItem.color,
+          relevance_score: newsItem.relevanceScore,
+        }),
+      });
+
+      if (!saveRes.ok) {
+        throw new Error("Не удалось сохранить пост");
+      }
+
+      setSavedPosts((prev) => ({
+        ...prev,
+        [newsItem.id]: {
+          ...newsItem,
+          savedAt: new Date().toISOString(),
+        },
+      }));
+    } catch (saveError) {
+      console.error(saveError);
+      if (saveError.message === "NO_AUTH_TOKEN") {
+        localStorage.removeItem("jwtToken");
+        localStorage.removeItem("userId");
+        window.location.href = "/";
+        return;
+      }
+      setError("Не удалось обновить сохраненные посты");
+    }
   };
 
   const handleSaveInterests = async () => {
@@ -329,10 +443,7 @@ function NewsFeed({ initialView = "news" }) {
 
       const res = await fetch("http://127.0.0.1:8000/interests", {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: getAuthHeaders(true),
         body: JSON.stringify({ interests: parsedInterests }),
       });
 
@@ -349,6 +460,12 @@ function NewsFeed({ initialView = "news" }) {
       await loadNewsAndInterests();
     } catch (saveError) {
       console.error(saveError);
+      if (saveError.message === "NO_AUTH_TOKEN") {
+        localStorage.removeItem("jwtToken");
+        localStorage.removeItem("userId");
+        window.location.href = "/";
+        return;
+      }
       setError("Не удалось обновить интересы пользователя");
     } finally {
       setSavingInterests(false);
@@ -359,10 +476,7 @@ function NewsFeed({ initialView = "news" }) {
     try {
       await fetch("http://127.0.0.1:8000/session/last-viewed-post", {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: getAuthHeaders(true),
         body: JSON.stringify({
           post_id: newsItem.id,
           post_url: newsItem.url,
@@ -387,7 +501,7 @@ function NewsFeed({ initialView = "news" }) {
           {profileLinks.map((link) => (
             <button
               key={link}
-              className={`panel-link ${(activeView === "news" && link === "Новости") || (activeView === "graph" && link === "Граф интересов") ? "active" : ""}`}
+              className={`panel-link ${(activeView === "news" && link === "Новости") || (activeView === "graph" && link === "Граф интересов") || (activeView === "saved" && link === "Сохраненное") ? "active" : ""}`}
               type="button"
               onClick={() => handleNavigationClick(link)}
             >
@@ -398,13 +512,16 @@ function NewsFeed({ initialView = "news" }) {
 
         <section className="news-main" aria-label="Лента новостей в стиле TikTok">
           <header className="news-feed-header">
-            <h1>{activeView === "news" ? "Лента новостей" : "Граф интересов"}</h1>
+            <h1>{activeView === "news" ? "Лента новостей" : activeView === "graph" ? "Граф интересов" : "Сохраненное"}</h1>
             <p>
               {activeView === "news"
                 ? "Свайпай вверх/вниз или прокручивай колесом мыши"
-                : "Полноразмерное окно графа, сопоставимое по размеру с лентой"}
+                : activeView === "graph"
+                  ? "Полноразмерное окно графа, сопоставимое по размеру с лентой"
+                  : "Посты, которые вы добавили в сохраненное"}
             </p>
             {activeView === "news" && <span className="news-feed-counter">Реакций: {totalLikes}</span>}
+            {activeView === "saved" && <span className="news-feed-counter">Сохранено: {savedNews.length}</span>}
             {activeView === "news" && lastViewedPost?.post_url && (
               <a className="last-viewed-link" href={lastViewedPost.post_url} target="_blank" rel="noreferrer">
                 Продолжить: {lastViewedPost.post_title ?? "Последний просмотренный пост"}
@@ -419,7 +536,7 @@ function NewsFeed({ initialView = "news" }) {
             <div className="news-feed">
               {visibleNews.map((newsItem) => {
                 const currentLike = likes[newsItem.id] ?? 0;
-                const isSaved = Boolean(saved[newsItem.id]);
+                const isSaved = Boolean(savedPosts[newsItem.id]);
 
                 return (
                   <article key={newsItem.id} className="news-card" style={{ backgroundImage: newsItem.color }}>
@@ -465,7 +582,7 @@ function NewsFeed({ initialView = "news" }) {
                       <button
                         type="button"
                         className={isSaved ? "active" : ""}
-                        onClick={() => toggleSave(newsItem.id)}
+                        onClick={() => toggleSave(newsItem)}
                         aria-label="Сохранить"
                       >
                         📌
@@ -479,6 +596,72 @@ function NewsFeed({ initialView = "news" }) {
 
           {activeView === "graph" && (
             <InterestsGraph onSelectionChange={setSelectedGraphInterests} />
+          )}
+
+          {activeView === "saved" && (
+            <>
+              {savedNews.length === 0 && <p className="news-state">Вы пока не сохранили ни одного поста.</p>}
+              {savedNews.length > 0 && (
+                <div className="news-feed">
+                  {savedNews.map((newsItem) => {
+                    const currentLike = likes[newsItem.id] ?? 0;
+
+                    return (
+                      <article key={newsItem.id} className="news-card" style={{ backgroundImage: newsItem.color }}>
+                        <div className="news-card-overlay" />
+                        <div className="news-card-content">
+                          <span className="news-category">{newsItem.category}</span>
+                          <h2>{newsItem.title}</h2>
+                          <p>{newsItem.summary}</p>
+
+                          <div className="news-meta">
+                            <span>{newsItem.source}</span>
+                            <span>{newsItem.time}</span>
+                          </div>
+
+                          <a
+                            href={newsItem.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="news-link"
+                            onClick={() => handleTrackLastViewedPost(newsItem)}
+                          >
+                            Читать оригинал
+                          </a>
+                        </div>
+
+                        <aside className="news-actions" aria-label="Действия с сохраненной новостью">
+                          <button
+                            type="button"
+                            className={currentLike === 1 ? "active" : ""}
+                            onClick={() => updateLike(newsItem.id, currentLike === 1 ? 0 : 1)}
+                            aria-label="Нравится"
+                          >
+                            👍
+                          </button>
+                          <button
+                            type="button"
+                            className={currentLike === -1 ? "active" : ""}
+                            onClick={() => updateLike(newsItem.id, currentLike === -1 ? 0 : -1)}
+                            aria-label="Не нравится"
+                          >
+                            👎
+                          </button>
+                          <button
+                            type="button"
+                            className="active"
+                            onClick={() => toggleSave(newsItem)}
+                            aria-label="Убрать из сохраненного"
+                          >
+                            📌
+                          </button>
+                        </aside>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </>
           )}
         </section>
 
