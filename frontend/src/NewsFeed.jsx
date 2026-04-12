@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import "./NewsFeed.css";
 
-const profileLinks = ["Моя страница", "Новости", "Граф интересов", "Сообщения", "Друзья", "Сообщества", "Фотографии", "Музыка"];
+const profileLinks = ["Моя страница", "Новости", "Граф интересов", "Сохраненное", "Сообщения", "Друзья", "Сообщества", "Фотографии", "Музыка"];
 
 const sectionLinks = ["Новости", "Фотографии", "Подкасты", "Рекомендации", "Поиск"];
 
@@ -237,6 +237,11 @@ function NewsFeed({ initialView = "news" }) {
       setActiveView("graph");
       window.history.replaceState({}, "", "/graph");
     }
+
+    if (link === "Сохраненное") {
+      setActiveView("saved");
+      window.history.replaceState({}, "", "/saved");
+    }
   };
 
   const loadNewsAndInterests = async () => {
@@ -306,6 +311,8 @@ function NewsFeed({ initialView = "news" }) {
 
     return [...news].sort((a, b) => b.relevanceScore - a.relevanceScore);
   }, [news, interestingFirst]);
+
+  const savedNews = useMemo(() => visibleNews.filter((item) => Boolean(saved[item.id])), [saved, visibleNews]);
 
   const updateLike = (id, value) => {
     setLikes((prev) => ({ ...prev, [id]: value }));
@@ -387,7 +394,7 @@ function NewsFeed({ initialView = "news" }) {
           {profileLinks.map((link) => (
             <button
               key={link}
-              className={`panel-link ${(activeView === "news" && link === "Новости") || (activeView === "graph" && link === "Граф интересов") ? "active" : ""}`}
+              className={`panel-link ${(activeView === "news" && link === "Новости") || (activeView === "graph" && link === "Граф интересов") || (activeView === "saved" && link === "Сохраненное") ? "active" : ""}`}
               type="button"
               onClick={() => handleNavigationClick(link)}
             >
@@ -398,13 +405,16 @@ function NewsFeed({ initialView = "news" }) {
 
         <section className="news-main" aria-label="Лента новостей в стиле TikTok">
           <header className="news-feed-header">
-            <h1>{activeView === "news" ? "Лента новостей" : "Граф интересов"}</h1>
+            <h1>{activeView === "news" ? "Лента новостей" : activeView === "graph" ? "Граф интересов" : "Сохраненное"}</h1>
             <p>
               {activeView === "news"
                 ? "Свайпай вверх/вниз или прокручивай колесом мыши"
-                : "Полноразмерное окно графа, сопоставимое по размеру с лентой"}
+                : activeView === "graph"
+                  ? "Полноразмерное окно графа, сопоставимое по размеру с лентой"
+                  : "Посты, которые вы добавили в сохраненное"}
             </p>
             {activeView === "news" && <span className="news-feed-counter">Реакций: {totalLikes}</span>}
+            {activeView === "saved" && <span className="news-feed-counter">Сохранено: {savedNews.length}</span>}
             {activeView === "news" && lastViewedPost?.post_url && (
               <a className="last-viewed-link" href={lastViewedPost.post_url} target="_blank" rel="noreferrer">
                 Продолжить: {lastViewedPost.post_title ?? "Последний просмотренный пост"}
@@ -479,6 +489,72 @@ function NewsFeed({ initialView = "news" }) {
 
           {activeView === "graph" && (
             <InterestsGraph onSelectionChange={setSelectedGraphInterests} />
+          )}
+
+          {activeView === "saved" && (
+            <>
+              {savedNews.length === 0 && <p className="news-state">Вы пока не сохранили ни одного поста.</p>}
+              {savedNews.length > 0 && (
+                <div className="news-feed">
+                  {savedNews.map((newsItem) => {
+                    const currentLike = likes[newsItem.id] ?? 0;
+
+                    return (
+                      <article key={newsItem.id} className="news-card" style={{ backgroundImage: newsItem.color }}>
+                        <div className="news-card-overlay" />
+                        <div className="news-card-content">
+                          <span className="news-category">{newsItem.category}</span>
+                          <h2>{newsItem.title}</h2>
+                          <p>{newsItem.summary}</p>
+
+                          <div className="news-meta">
+                            <span>{newsItem.source}</span>
+                            <span>{newsItem.time}</span>
+                          </div>
+
+                          <a
+                            href={newsItem.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="news-link"
+                            onClick={() => handleTrackLastViewedPost(newsItem)}
+                          >
+                            Читать оригинал
+                          </a>
+                        </div>
+
+                        <aside className="news-actions" aria-label="Действия с сохраненной новостью">
+                          <button
+                            type="button"
+                            className={currentLike === 1 ? "active" : ""}
+                            onClick={() => updateLike(newsItem.id, currentLike === 1 ? 0 : 1)}
+                            aria-label="Нравится"
+                          >
+                            👍
+                          </button>
+                          <button
+                            type="button"
+                            className={currentLike === -1 ? "active" : ""}
+                            onClick={() => updateLike(newsItem.id, currentLike === -1 ? 0 : -1)}
+                            aria-label="Не нравится"
+                          >
+                            👎
+                          </button>
+                          <button
+                            type="button"
+                            className="active"
+                            onClick={() => toggleSave(newsItem.id)}
+                            aria-label="Убрать из сохраненного"
+                          >
+                            📌
+                          </button>
+                        </aside>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </>
           )}
         </section>
 
