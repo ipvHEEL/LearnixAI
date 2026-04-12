@@ -1,6 +1,7 @@
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Security
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, Field
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from service.auth.auth_service import AuthService
 from service.data.api_load import load_all_rss, parse_articles
@@ -10,6 +11,7 @@ from service.session.redis_session_store import RedisSessionStore
 app = FastAPI()
 auth_service = AuthService()
 session_store = RedisSessionStore()
+bearer_scheme = HTTPBearer(auto_error=False)
 
 origins = [
     "http://localhost:3000",
@@ -58,14 +60,21 @@ class SavedPostRequest(BaseModel):
     relevance_score: float = 0
 
 
-def _extract_token(authorization: str | None) -> str:
-    if authorization is None or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
-    return authorization.replace("Bearer ", "", 1)
+def _extract_token(authorization: str | None, credentials: HTTPAuthorizationCredentials | None) -> str:
+    if credentials and credentials.scheme.lower() == "bearer" and credentials.credentials:
+        return credentials.credentials
+
+    if authorization is None:
+        raise HTTPException(status_code=401, detail="Missing Authorization header")
+
+    if authorization.startswith("Bearer "):
+        return authorization.replace("Bearer ", "", 1).strip()
+
+    return authorization.strip()
 
 
-def _authorized_user(authorization: str | None):
-    token = _extract_token(authorization)
+def _authorized_user(authorization: str | None, credentials: HTTPAuthorizationCredentials | None):
+    token = _extract_token(authorization, credentials)
     user = auth_service.get_user_by_valid_token(token)
     if user is None:
         raise HTTPException(status_code=401, detail="Invalid JWT token")
@@ -97,8 +106,11 @@ def login(data: LoginRequest):
 
 
 @app.get("/news")
-def news(authorization: str | None = Header(default=None)):
-    user = _authorized_user(authorization)
+def news(
+    authorization: str | None = Header(default=None),
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
+):
+    user = _authorized_user(authorization, credentials)
 
     xml_list = load_all_rss()
     articles = parse_articles(xml_list)
@@ -120,21 +132,32 @@ def news(authorization: str | None = Header(default=None)):
 
 
 @app.get("/interests")
-def get_interests(authorization: str | None = Header(default=None)):
-    user = _authorized_user(authorization)
+def get_interests(
+    authorization: str | None = Header(default=None),
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
+):
+    user = _authorized_user(authorization, credentials)
     return {"user_id": user.user_id, "interests": user.interests}
 
 
 @app.put("/interests")
-def update_interests(data: InterestsUpdateRequest, authorization: str | None = Header(default=None)):
-    user = _authorized_user(authorization)
+def update_interests(
+    data: InterestsUpdateRequest,
+    authorization: str | None = Header(default=None),
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
+):
+    user = _authorized_user(authorization, credentials)
     updated = auth_service.user_repository.update_interests(user.user_id, data.interests)
     return {"user_id": user.user_id, "interests": updated}
 
 
 @app.put("/session/last-viewed-post")
-def save_last_viewed_post(data: LastViewedPostRequest, authorization: str | None = Header(default=None)):
-    user = _authorized_user(authorization)
+def save_last_viewed_post(
+    data: LastViewedPostRequest,
+    authorization: str | None = Header(default=None),
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
+):
+    user = _authorized_user(authorization, credentials)
     stored = session_store.save_last_viewed_post(
         user.user_id,
         {
@@ -149,8 +172,11 @@ def save_last_viewed_post(data: LastViewedPostRequest, authorization: str | None
 
 
 @app.get("/session/last-viewed-post")
-def get_last_viewed_post(authorization: str | None = Header(default=None)):
-    user = _authorized_user(authorization)
+def get_last_viewed_post(
+    authorization: str | None = Header(default=None),
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
+):
+    user = _authorized_user(authorization, credentials)
     payload = session_store.get_last_viewed_post(user.user_id)
     return {
         "user_id": user.user_id,
@@ -159,15 +185,22 @@ def get_last_viewed_post(authorization: str | None = Header(default=None)):
 
 
 @app.get("/saved-posts")
-def get_saved_posts(authorization: str | None = Header(default=None)):
-    user = _authorized_user(authorization)
+def get_saved_posts(
+    authorization: str | None = Header(default=None),
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
+):
+    user = _authorized_user(authorization, credentials)
     posts = auth_service.user_repository.list_saved_posts(user.user_id)
     return {"user_id": user.user_id, "saved_posts": posts}
 
 
 @app.put("/saved-posts")
-def save_post(data: SavedPostRequest, authorization: str | None = Header(default=None)):
-    user = _authorized_user(authorization)
+def save_post(
+    data: SavedPostRequest,
+    authorization: str | None = Header(default=None),
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
+):
+    user = _authorized_user(authorization, credentials)
     auth_service.user_repository.save_post(
         user.user_id,
         {
@@ -185,9 +218,22 @@ def save_post(data: SavedPostRequest, authorization: str | None = Header(default
     return {"status": "ok"}
 
 
+@app.post("/saved-posts")
+def save_post_via_post(
+    data: SavedPostRequest,
+    authorization: str | None = Header(default=None),
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
+):
+    return save_post(data, authorization, credentials)
+
+
 @app.delete("/saved-posts")
-def delete_saved_post(post_id: str, authorization: str | None = Header(default=None)):
-    user = _authorized_user(authorization)
+def delete_saved_post(
+    post_id: str,
+    authorization: str | None = Header(default=None),
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
+):
+    user = _authorized_user(authorization, credentials)
     deleted = auth_service.user_repository.delete_saved_post(user.user_id, post_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Saved post not found")
