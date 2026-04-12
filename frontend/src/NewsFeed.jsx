@@ -265,40 +265,58 @@ function NewsFeed({ initialView = "news" }) {
 
     try {
       const authHeaders = getAuthHeaders();
-      const [interestsRes, lastViewedRes, newsRes, savedPostsRes] = await Promise.all([
-        fetch("http://127.0.0.1:8000/interests", {
+      const requestMap = {
+        interests: fetch("http://127.0.0.1:8000/interests", {
           headers: authHeaders,
         }),
-        fetch("http://127.0.0.1:8000/session/last-viewed-post", {
+        lastViewed: fetch("http://127.0.0.1:8000/session/last-viewed-post", {
           headers: authHeaders,
         }),
-        fetch("http://127.0.0.1:8000/news", {
+        savedPosts: fetch("http://127.0.0.1:8000/saved-posts", {
           headers: authHeaders,
         }),
-        fetch("http://127.0.0.1:8000/saved-posts", {
-          headers: authHeaders,
-        }),
-      ]);
+      };
 
-      const responses = [interestsRes, lastViewedRes, newsRes, savedPostsRes];
-      if (responses.some((response) => response.status === 401)) {
+      if (activeView === "news") {
+        requestMap.news = fetch("http://127.0.0.1:8000/news", {
+          headers: authHeaders,
+        });
+      }
+
+      const settled = await Promise.allSettled(
+        Object.entries(requestMap).map(async ([key, requestPromise]) => [key, await requestPromise]),
+      );
+
+      const responsesByKey = settled.reduce((acc, result) => {
+        if (result.status === "fulfilled") {
+          const [key, response] = result.value;
+          acc[key] = response;
+        }
+        return acc;
+      }, {});
+
+      const hasUnauthorized = Object.values(responsesByKey).some((response) => response.status === 401);
+      if (hasUnauthorized) {
         localStorage.removeItem("jwtToken");
         localStorage.removeItem("userId");
         window.location.href = "/";
         return;
       }
 
-      if (interestsRes.ok) {
+      const interestsRes = responsesByKey.interests;
+      if (interestsRes?.ok) {
         const interestsData = await interestsRes.json();
         setInterestsInput((interestsData.interests ?? []).join(", "));
       }
 
-      if (lastViewedRes.ok) {
+      const lastViewedRes = responsesByKey.lastViewed;
+      if (lastViewedRes?.ok) {
         const lastViewedData = await lastViewedRes.json();
         setLastViewedPost(lastViewedData.last_viewed_post ?? null);
       }
 
-      if (savedPostsRes.ok) {
+      const savedPostsRes = responsesByKey.savedPosts;
+      if (savedPostsRes?.ok) {
         const savedPostsData = await savedPostsRes.json();
         const mapped = (savedPostsData.saved_posts ?? []).reduce((acc, item) => {
           acc[item.post_id] = {
@@ -316,13 +334,16 @@ function NewsFeed({ initialView = "news" }) {
           return acc;
         }, {});
         setSavedPosts(mapped);
+      } else if (activeView === "saved") {
+        setError("Не удалось загрузить сохраненные посты");
       }
 
-      if (newsRes.ok) {
+      const newsRes = responsesByKey.news;
+      if (newsRes?.ok) {
         const data = await newsRes.json();
         const normalizedNews = (data.articles ?? []).map(toNewsItem);
         setNews(normalizedNews);
-      } else {
+      } else if (activeView === "news") {
         setError("Не удалось получить новости с сервера");
       }
     } catch (fetchError) {
@@ -600,8 +621,10 @@ function NewsFeed({ initialView = "news" }) {
 
           {activeView === "saved" && (
             <>
-              {savedNews.length === 0 && <p className="news-state">Вы пока не сохранили ни одного поста.</p>}
-              {savedNews.length > 0 && (
+              {loading && <p className="news-state">Загрузка сохраненных постов...</p>}
+              {error && <p className="news-state news-state-error">{error}</p>}
+              {!loading && savedNews.length === 0 && <p className="news-state">Вы пока не сохранили ни одного поста.</p>}
+              {!loading && savedNews.length > 0 && (
                 <div className="news-feed">
                   {savedNews.map((newsItem) => {
                     const currentLike = likes[newsItem.id] ?? 0;
