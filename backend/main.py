@@ -46,6 +46,18 @@ class LastViewedPostRequest(BaseModel):
     post_title: str | None = None
 
 
+class SavedPostRequest(BaseModel):
+    post_id: str
+    post_url: str | None = None
+    post_title: str | None = None
+    post_summary: str | None = None
+    post_category: str | None = None
+    post_source: str | None = None
+    post_time: str | None = None
+    post_color: str | None = None
+    relevance_score: float = 0
+
+
 def _extract_token(authorization: str | None) -> str:
     if authorization is None or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
@@ -144,3 +156,39 @@ def get_last_viewed_post(authorization: str | None = Header(default=None)):
         "user_id": user.user_id,
         "last_viewed_post": payload,
     }
+
+
+@app.get("/saved-posts")
+def get_saved_posts(authorization: str | None = Header(default=None)):
+    user = _authorized_user(authorization)
+    posts = auth_service.user_repository.list_saved_posts(user.user_id)
+    return {"user_id": user.user_id, "saved_posts": posts}
+
+
+@app.put("/saved-posts")
+def save_post(data: SavedPostRequest, authorization: str | None = Header(default=None)):
+    user = _authorized_user(authorization)
+    auth_service.user_repository.save_post(
+        user.user_id,
+        {
+            "post_id": data.post_id,
+            "post_url": data.post_url,
+            "post_title": data.post_title,
+            "post_summary": data.post_summary,
+            "post_category": data.post_category,
+            "post_source": data.post_source,
+            "post_time": data.post_time,
+            "post_color": data.post_color,
+            "relevance_score": data.relevance_score,
+        },
+    )
+    return {"status": "ok"}
+
+
+@app.delete("/saved-posts")
+def delete_saved_post(post_id: str, authorization: str | None = Header(default=None)):
+    user = _authorized_user(authorization)
+    deleted = auth_service.user_repository.delete_saved_post(user.user_id, post_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Saved post not found")
+    return {"status": "ok"}
