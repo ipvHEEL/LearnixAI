@@ -60,6 +60,18 @@ class SavedPostRequest(BaseModel):
     relevance_score: float = 0
 
 
+class LikedPostRequest(BaseModel):
+    post_id: str
+    post_url: str | None = None
+    post_title: str | None = None
+    post_summary: str | None = None
+    post_category: str | None = None
+    post_source: str | None = None
+    post_time: str | None = None
+    post_color: str | None = None
+    relevance_score: float = 0
+
+
 def _authorized_user(credentials: HTTPAuthorizationCredentials) -> object:
     token = credentials.credentials
     user = auth_service.get_user_by_valid_token(token)
@@ -215,4 +227,56 @@ def delete_saved_post(
     deleted = auth_service.user_repository.delete_saved_post(user.user_id, post_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Saved post not found")
+    return {"status": "ok"}
+
+
+@app.get("/liked-posts")
+def get_liked_posts(
+    credentials: HTTPAuthorizationCredentials = Security(bearer_scheme),
+):
+    user = _authorized_user(credentials)
+    posts = auth_service.user_repository.list_liked_posts(user.user_id)
+    return {"user_id": user.user_id, "liked_posts": posts}
+
+
+@app.put("/liked-posts")
+def like_post(
+    data: LikedPostRequest,
+    credentials: HTTPAuthorizationCredentials = Security(bearer_scheme),
+):
+    user = _authorized_user(credentials)
+    auth_service.user_repository.like_post(
+        user.user_id,
+        {
+            "post_id": data.post_id,
+            "post_url": data.post_url,
+            "post_title": data.post_title,
+            "post_summary": data.post_summary,
+            "post_category": data.post_category,
+            "post_source": data.post_source,
+            "post_time": data.post_time,
+            "post_color": data.post_color,
+            "relevance_score": data.relevance_score,
+        },
+    )
+    return {"status": "ok"}
+
+
+@app.post("/liked-posts")
+def like_post_via_post(
+    data: LikedPostRequest,
+    credentials: HTTPAuthorizationCredentials = Security(bearer_scheme),
+):
+    return like_post(data, credentials)
+
+
+@app.delete("/liked-posts")
+def delete_liked_post(
+    post_id: str,
+    credentials: HTTPAuthorizationCredentials = Security(bearer_scheme),
+):
+    user = _authorized_user(credentials)
+    deleted = auth_service.user_repository.delete_liked_post(user.user_id, post_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Liked post not found")
     return {"status": "ok"}
