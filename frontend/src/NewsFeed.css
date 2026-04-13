@@ -416,6 +416,41 @@
   font-size: 0.92rem;
 }
 
+.notes-panel {
+  min-height: calc(100vh - 126px);
+  border-radius: 20px;
+  background: rgba(4, 5, 8, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.notes-textarea {
+  width: 100%;
+  min-height: 70vh;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(12, 12, 20, 0.7);
+  color: #fff;
+  padding: 12px;
+  resize: vertical;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.notes-save-button {
+  width: fit-content;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  padding: 10px 14px;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
 @keyframes graphNodePulse {
   0%,
   100% {

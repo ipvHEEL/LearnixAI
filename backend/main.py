@@ -72,6 +72,10 @@ class LikedPostRequest(BaseModel):
     relevance_score: float = 0
 
 
+class NotesUpdateRequest(BaseModel):
+    notes: str = ""
+
+
 def _authorized_user(credentials: HTTPAuthorizationCredentials) -> object:
     token = credentials.credentials
     user = auth_service.get_user_by_valid_token(token)
@@ -280,3 +284,21 @@ def delete_liked_post(
     if not deleted:
         raise HTTPException(status_code=404, detail="Liked post not found")
     return {"status": "ok"}
+
+
+@app.get("/notes")
+def get_notes(
+    credentials: HTTPAuthorizationCredentials = Security(bearer_scheme),
+):
+    user = _authorized_user(credentials)
+    return {"user_id": user.user_id, "notes": auth_service.user_repository.get_notes(user.user_id)}
+
+
+@app.put("/notes")
+def update_notes(
+    data: NotesUpdateRequest,
+    credentials: HTTPAuthorizationCredentials = Security(bearer_scheme),
+):
+    user = _authorized_user(credentials)
+    notes = auth_service.user_repository.update_notes(user.user_id, data.notes)
+    return {"user_id": user.user_id, "notes": notes}
