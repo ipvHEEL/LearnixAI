@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import "./NewsFeed.css";
 
-const profileLinks = ["Моя страница", "Новости", "Граф интересов", "Сохраненное", "Сообщения", "Друзья", "Сообщества", "Фотографии", "Музыка"];
+const profileLinks = ["Моя страница", "Новости", "Граф интересов", "Сохраненное", "Лайкнутые", "Сообщения", "Друзья", "Сообщества", "Фотографии", "Музыка"];
 
 const sectionLinks = ["Новости", "Фотографии", "Подкасты", "Рекомендации", "Поиск"];
 
@@ -257,6 +257,11 @@ function NewsFeed({ initialView = "news" }) {
       setActiveView("saved");
       window.history.replaceState({}, "", "/saved");
     }
+
+    if (link === "Лайкнутые") {
+      setActiveView("liked");
+      window.history.replaceState({}, "", "/liked");
+    }
   };
 
   const loadNewsAndInterests = async () => {
@@ -383,6 +388,19 @@ function NewsFeed({ initialView = "news" }) {
       }),
     [savedPosts],
   );
+
+  const likedNews = useMemo(() => {
+    const merged = [...news, ...savedNews];
+    const byId = new Map();
+
+    merged.forEach((item) => {
+      if (!byId.has(item.id)) {
+        byId.set(item.id, item);
+      }
+    });
+
+    return Array.from(byId.values()).filter((item) => likes[item.id] === 1);
+  }, [likes, news, savedNews]);
 
   const updateLike = (id, value) => {
     setLikes((prev) => ({ ...prev, [id]: value }));
@@ -522,7 +540,7 @@ function NewsFeed({ initialView = "news" }) {
           {profileLinks.map((link) => (
             <button
               key={link}
-              className={`panel-link ${(activeView === "news" && link === "Новости") || (activeView === "graph" && link === "Граф интересов") || (activeView === "saved" && link === "Сохраненное") ? "active" : ""}`}
+              className={`panel-link ${(activeView === "news" && link === "Новости") || (activeView === "graph" && link === "Граф интересов") || (activeView === "saved" && link === "Сохраненное") || (activeView === "liked" && link === "Лайкнутые") ? "active" : ""}`}
               type="button"
               onClick={() => handleNavigationClick(link)}
             >
@@ -533,16 +551,19 @@ function NewsFeed({ initialView = "news" }) {
 
         <section className="news-main" aria-label="Лента новостей в стиле TikTok">
           <header className="news-feed-header">
-            <h1>{activeView === "news" ? "Лента новостей" : activeView === "graph" ? "Граф интересов" : "Сохраненное"}</h1>
+            <h1>{activeView === "news" ? "Лента новостей" : activeView === "graph" ? "Граф интересов" : activeView === "saved" ? "Сохраненное" : "Лайкнутые"}</h1>
             <p>
               {activeView === "news"
                 ? "Свайпай вверх/вниз или прокручивай колесом мыши"
                 : activeView === "graph"
                   ? "Полноразмерное окно графа, сопоставимое по размеру с лентой"
-                  : "Посты, которые вы добавили в сохраненное"}
+                  : activeView === "saved"
+                    ? "Посты, которые вы добавили в сохраненное"
+                    : "Посты, которым вы поставили лайк"}
             </p>
             {activeView === "news" && <span className="news-feed-counter">Реакций: {totalLikes}</span>}
             {activeView === "saved" && <span className="news-feed-counter">Сохранено: {savedNews.length}</span>}
+            {activeView === "liked" && <span className="news-feed-counter">Лайкнуто: {likedNews.length}</span>}
             {activeView === "news" && lastViewedPost?.post_url && (
               <a className="last-viewed-link" href={lastViewedPost.post_url} target="_blank" rel="noreferrer">
                 Продолжить: {lastViewedPost.post_title ?? "Последний просмотренный пост"}
@@ -675,6 +696,61 @@ function NewsFeed({ initialView = "news" }) {
                             className="active"
                             onClick={() => toggleSave(newsItem)}
                             aria-label="Убрать из сохраненного"
+                          >
+                            📌
+                          </button>
+                        </aside>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
+
+          {activeView === "liked" && (
+            <>
+              {loading && <p className="news-state">Загрузка лайкнутых постов...</p>}
+              {error && <p className="news-state news-state-error">{error}</p>}
+              {!loading && likedNews.length === 0 && <p className="news-state">Вы пока не лайкнули ни одного поста.</p>}
+              {!loading && likedNews.length > 0 && (
+                <div className="news-feed">
+                  {likedNews.map((newsItem) => {
+                    const isSaved = Boolean(savedPosts[newsItem.id]);
+
+                    return (
+                      <article key={newsItem.id} className="news-card" style={{ backgroundImage: newsItem.color }}>
+                        <div className="news-card-overlay" />
+                        <div className="news-card-content">
+                          <span className="news-category">{newsItem.category}</span>
+                          <h2>{newsItem.title}</h2>
+                          <p>{newsItem.summary}</p>
+
+                          <div className="news-meta">
+                            <span>{newsItem.source}</span>
+                            <span>{newsItem.time}</span>
+                          </div>
+
+                          <a
+                            href={newsItem.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="news-link"
+                            onClick={() => handleTrackLastViewedPost(newsItem)}
+                          >
+                            Читать оригинал
+                          </a>
+                        </div>
+
+                        <aside className="news-actions" aria-label="Действия с лайкнутой новостью">
+                          <button type="button" className="active" onClick={() => updateLike(newsItem.id, 0)} aria-label="Убрать лайк">
+                            👍
+                          </button>
+                          <button
+                            type="button"
+                            className={isSaved ? "active" : ""}
+                            onClick={() => toggleSave(newsItem)}
+                            aria-label={isSaved ? "Убрать из сохраненного" : "Сохранить"}
                           >
                             📌
                           </button>
