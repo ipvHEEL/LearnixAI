@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import "./NewsFeed.css";
 
-const profileLinks = ["Моя страница", "Новости", "Граф интересов", "Сохраненное", "Сообщения", "Друзья", "Сообщества", "Фотографии", "Музыка"];
+const profileLinks = ["Моя страница", "Новости", "Граф интересов", "Сохраненное", "Лайкнутые", "Сообщения", "Друзья", "Сообщества", "Фотографии", "Музыка"];
 
 const sectionLinks = ["Новости", "Фотографии", "Подкасты", "Рекомендации", "Поиск"];
 
@@ -218,6 +218,7 @@ function InterestsGraph({ onSelectionChange }) {
 function NewsFeed({ initialView = "news" }) {
   const [likes, setLikes] = useState({});
   const [savedPosts, setSavedPosts] = useState({});
+  const [likedPosts, setLikedPosts] = useState({});
   const [interestingFirst, setInterestingFirst] = useState(true);
   const [news, setNews] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -257,6 +258,11 @@ function NewsFeed({ initialView = "news" }) {
       setActiveView("saved");
       window.history.replaceState({}, "", "/saved");
     }
+
+    if (link === "Лайкнутые") {
+      setActiveView("liked");
+      window.history.replaceState({}, "", "/liked");
+    }
   };
 
   const loadNewsAndInterests = async () => {
@@ -265,7 +271,7 @@ function NewsFeed({ initialView = "news" }) {
 
     try {
       const authHeaders = getAuthHeaders();
-      const [interestsRes, lastViewedRes, newsRes, savedPostsRes] = await Promise.all([
+      const [interestsRes, lastViewedRes, newsRes, savedPostsRes, likedPostsRes] = await Promise.all([
         fetch("http://127.0.0.1:8000/interests", {
           headers: authHeaders,
         }),
@@ -278,9 +284,12 @@ function NewsFeed({ initialView = "news" }) {
         fetch("http://127.0.0.1:8000/saved-posts", {
           headers: authHeaders,
         }),
+        fetch("http://127.0.0.1:8000/liked-posts", {
+          headers: authHeaders,
+        }),
       ]);
 
-      const responses = [interestsRes, lastViewedRes, newsRes, savedPostsRes];
+      const responses = [interestsRes, lastViewedRes, newsRes, savedPostsRes, likedPostsRes];
       if (responses.some((response) => response.status === 401)) {
         localStorage.removeItem("jwtToken");
         localStorage.removeItem("userId");
@@ -316,6 +325,33 @@ function NewsFeed({ initialView = "news" }) {
           return acc;
         }, {});
         setSavedPosts(mapped);
+      }
+
+      if (likedPostsRes.ok) {
+        const likedPostsData = await likedPostsRes.json();
+        const mapped = (likedPostsData.liked_posts ?? []).reduce((acc, item) => {
+          acc[item.post_id] = {
+            id: item.post_id,
+            category: item.post_category ?? "Лайкнуто",
+            title: item.post_title ?? "Без названия",
+            summary: item.post_summary ?? "",
+            source: item.post_source ?? "Источник",
+            time: item.post_time ?? "Без даты",
+            color: item.post_color ?? cardGradients[0],
+            relevanceScore: item.relevance_score ?? 0,
+            url: item.post_url ?? "#",
+            likedAt: item.liked_at ?? "",
+          };
+          return acc;
+        }, {});
+        setLikedPosts(mapped);
+        setLikes((prev) => {
+          const next = { ...prev };
+          Object.keys(mapped).forEach((postId) => {
+            next[postId] = 1;
+          });
+          return next;
+        });
       }
 
       if (newsRes.ok) {
@@ -363,8 +399,76 @@ function NewsFeed({ initialView = "news" }) {
     [savedPosts],
   );
 
-  const updateLike = (id, value) => {
+  const likedNews = useMemo(
+    () =>
+      Object.values(likedPosts).sort((a, b) => {
+        const aTs = a.likedAt ? new Date(a.likedAt).getTime() : 0;
+        const bTs = b.likedAt ? new Date(b.likedAt).getTime() : 0;
+        return bTs - aTs;
+      }),
+    [likedPosts],
+  );
+
+  const updateLike = async (newsItem, value) => {
+    const id = newsItem.id;
     setLikes((prev) => ({ ...prev, [id]: value }));
+
+    try {
+      if (value === 1) {
+        const likeRes = await fetch("http://127.0.0.1:8000/liked-posts", {
+          method: "PUT",
+          headers: getAuthHeaders(true),
+          body: JSON.stringify({
+            post_id: newsItem.id,
+            post_url: newsItem.url,
+            post_title: newsItem.title,
+            post_summary: newsItem.summary,
+            post_category: newsItem.category,
+            post_source: newsItem.source,
+            post_time: newsItem.time,
+            post_color: newsItem.color,
+            relevance_score: newsItem.relevanceScore,
+          }),
+        });
+
+        if (!likeRes.ok) {
+          throw new Error("Не удалось добавить лайк");
+        }
+
+        setLikedPosts((prev) => ({
+          ...prev,
+          [newsItem.id]: {
+            ...newsItem,
+            likedAt: new Date().toISOString(),
+          },
+        }));
+        return;
+      }
+
+      const deleteRes = await fetch(`http://127.0.0.1:8000/liked-posts?post_id=${encodeURIComponent(newsItem.id)}`, {
+        method: "DELETE",
+        headers: getAuthHeaders(),
+      });
+
+      if (!deleteRes.ok && deleteRes.status !== 404) {
+        throw new Error("Не удалось удалить лайк");
+      }
+
+      setLikedPosts((prev) => {
+        const next = { ...prev };
+        delete next[newsItem.id];
+        return next;
+      });
+    } catch (likeError) {
+      console.error(likeError);
+      if (likeError.message === "NO_AUTH_TOKEN") {
+        localStorage.removeItem("jwtToken");
+        localStorage.removeItem("userId");
+        window.location.href = "/";
+        return;
+      }
+      setError("Не удалось обновить лайкнутые посты");
+    }
   };
 
   const toggleSave = async (newsItem) => {
@@ -501,7 +605,7 @@ function NewsFeed({ initialView = "news" }) {
           {profileLinks.map((link) => (
             <button
               key={link}
-              className={`panel-link ${(activeView === "news" && link === "Новости") || (activeView === "graph" && link === "Граф интересов") || (activeView === "saved" && link === "Сохраненное") ? "active" : ""}`}
+              className={`panel-link ${(activeView === "news" && link === "Новости") || (activeView === "graph" && link === "Граф интересов") || (activeView === "saved" && link === "Сохраненное") || (activeView === "liked" && link === "Лайкнутые") ? "active" : ""}`}
               type="button"
               onClick={() => handleNavigationClick(link)}
             >
@@ -512,16 +616,19 @@ function NewsFeed({ initialView = "news" }) {
 
         <section className="news-main" aria-label="Лента новостей в стиле TikTok">
           <header className="news-feed-header">
-            <h1>{activeView === "news" ? "Лента новостей" : activeView === "graph" ? "Граф интересов" : "Сохраненное"}</h1>
+            <h1>{activeView === "news" ? "Лента новостей" : activeView === "graph" ? "Граф интересов" : activeView === "saved" ? "Сохраненное" : "Лайкнутые посты"}</h1>
             <p>
               {activeView === "news"
                 ? "Свайпай вверх/вниз или прокручивай колесом мыши"
                 : activeView === "graph"
                   ? "Полноразмерное окно графа, сопоставимое по размеру с лентой"
-                  : "Посты, которые вы добавили в сохраненное"}
+                  : activeView === "saved"
+                    ? "Посты, которые вы добавили в сохраненное"
+                    : "Посты, которым вы поставили лайк"}
             </p>
             {activeView === "news" && <span className="news-feed-counter">Реакций: {totalLikes}</span>}
             {activeView === "saved" && <span className="news-feed-counter">Сохранено: {savedNews.length}</span>}
+            {activeView === "liked" && <span className="news-feed-counter">Лайкнуто: {likedNews.length}</span>}
             {activeView === "news" && lastViewedPost?.post_url && (
               <a className="last-viewed-link" href={lastViewedPost.post_url} target="_blank" rel="noreferrer">
                 Продолжить: {lastViewedPost.post_title ?? "Последний просмотренный пост"}
@@ -566,7 +673,7 @@ function NewsFeed({ initialView = "news" }) {
                       <button
                         type="button"
                         className={currentLike === 1 ? "active" : ""}
-                        onClick={() => updateLike(newsItem.id, currentLike === 1 ? 0 : 1)}
+                        onClick={() => updateLike(newsItem, currentLike === 1 ? 0 : 1)}
                         aria-label="Нравится"
                       >
                         👍
@@ -574,7 +681,7 @@ function NewsFeed({ initialView = "news" }) {
                       <button
                         type="button"
                         className={currentLike === -1 ? "active" : ""}
-                        onClick={() => updateLike(newsItem.id, currentLike === -1 ? 0 : -1)}
+                        onClick={() => updateLike(newsItem, currentLike === -1 ? 0 : -1)}
                         aria-label="Не нравится"
                       >
                         👎
@@ -634,7 +741,7 @@ function NewsFeed({ initialView = "news" }) {
                           <button
                             type="button"
                             className={currentLike === 1 ? "active" : ""}
-                            onClick={() => updateLike(newsItem.id, currentLike === 1 ? 0 : 1)}
+                            onClick={() => updateLike(newsItem, currentLike === 1 ? 0 : 1)}
                             aria-label="Нравится"
                           >
                             👍
@@ -642,7 +749,7 @@ function NewsFeed({ initialView = "news" }) {
                           <button
                             type="button"
                             className={currentLike === -1 ? "active" : ""}
-                            onClick={() => updateLike(newsItem.id, currentLike === -1 ? 0 : -1)}
+                            onClick={() => updateLike(newsItem, currentLike === -1 ? 0 : -1)}
                             aria-label="Не нравится"
                           >
                             👎
@@ -652,6 +759,59 @@ function NewsFeed({ initialView = "news" }) {
                             className="active"
                             onClick={() => toggleSave(newsItem)}
                             aria-label="Убрать из сохраненного"
+                          >
+                            📌
+                          </button>
+                        </aside>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
+
+          {activeView === "liked" && (
+            <>
+              {likedNews.length === 0 && <p className="news-state">Вы пока не лайкнули ни одного поста.</p>}
+              {likedNews.length > 0 && (
+                <div className="news-feed">
+                  {likedNews.map((newsItem) => {
+                    const isSaved = Boolean(savedPosts[newsItem.id]);
+
+                    return (
+                      <article key={newsItem.id} className="news-card" style={{ backgroundImage: newsItem.color }}>
+                        <div className="news-card-overlay" />
+                        <div className="news-card-content">
+                          <span className="news-category">{newsItem.category}</span>
+                          <h2>{newsItem.title}</h2>
+                          <p>{newsItem.summary}</p>
+
+                          <div className="news-meta">
+                            <span>{newsItem.source}</span>
+                            <span>{newsItem.time}</span>
+                          </div>
+
+                          <a
+                            href={newsItem.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="news-link"
+                            onClick={() => handleTrackLastViewedPost(newsItem)}
+                          >
+                            Читать оригинал
+                          </a>
+                        </div>
+
+                        <aside className="news-actions" aria-label="Действия с лайкнутой новостью">
+                          <button type="button" className="active" onClick={() => updateLike(newsItem, 0)} aria-label="Убрать лайк">
+                            👍
+                          </button>
+                          <button
+                            type="button"
+                            className={isSaved ? "active" : ""}
+                            onClick={() => toggleSave(newsItem)}
+                            aria-label={isSaved ? "Убрать из сохраненного" : "Сохранить"}
                           >
                             📌
                           </button>
