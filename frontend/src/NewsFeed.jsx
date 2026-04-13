@@ -53,16 +53,16 @@ const toNewsItem = (article, index) => {
 };
 
 const graphNodesTemplate = [
-  { id: "ai", label: "AI", x: 50, y: 18 },
-  { id: "ml", label: "ML", x: 34, y: 33 },
+  { id: "python", label: "Python", x: 50, y: 18 },
+  { id: "forntend", label: "Forntend", x: 34, y: 33 },
   { id: "data", label: "Data", x: 66, y: 33 },
   { id: "startup", label: "Стартапы", x: 22, y: 50 },
-  { id: "design", label: "Дизайн", x: 42, y: 52 },
-  { id: "product", label: "Product", x: 58, y: 52 },
+  { id: "devops", label: "Devops", x: 42, y: 52 },
+  { id: "kubernetes", label: "Kuber", x: 58, y: 52 },
   { id: "science", label: "Наука", x: 77, y: 50 },
   { id: "robotics", label: "Робототехника", x: 36, y: 70 },
-  { id: "space", label: "Космос", x: 64, y: 70 },
-  { id: "future", label: "Будущее", x: 50, y: 84 },
+  { id: "dwh", label: "DWH", x: 64, y: 70 },
+  { id: "backend", label: "Backend", x: 50, y: 84 },
 ];
 
 const initialNodes = graphNodesTemplate.map((node) => ({ ...node }));
