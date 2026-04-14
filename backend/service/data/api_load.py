@@ -5,9 +5,9 @@ import re
 from typing import List, Dict
 
 RSS_SOURCES = [
-    "https://habr.com/ru/rss/all/",
-    "https://habr.com/ru/rss/articles/?fl=tech",
-    "https://habr.com/ru/rss/news/",
+    # "https://habr.com/ru/rss/all/",
+    # "https://habr.com/ru/rss/articles/?fl=tech",
+    # "https://habr.com/ru/rss/news/",
 
     "https://habr.com/ru/rss/hubs/programming/",
     "https://habr.com/ru/rss/hubs/algorithms/",
@@ -22,10 +22,10 @@ RSS_SOURCES = [
     "https://habr.com/ru/rss/hubs/go/",
     "https://habr.com/ru/rss/hubs/rust/",
 
-    "https://habr.com/ru/rss/hubs/data_science/",
-    "https://habr.com/ru/rss/hubs/machine_learning/",
-    "https://habr.com/ru/rss/hubs/deep_learning/",
-    "https://habr.com/ru/rss/hubs/artificial_intelligence/",
+    # "https://habr.com/ru/rss/hubs/data_science/",
+    # "https://habr.com/ru/rss/hubs/machine_learning/",
+    # "https://habr.com/ru/rss/hubs/deep_learning/",
+    # "https://habr.com/ru/rss/hubs/artificial_intelligence/",
 
     "https://habr.com/ru/rss/hubs/quant/",
     "https://habr.com/ru/rss/hubs/fintech/",

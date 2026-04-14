@@ -80,6 +80,13 @@ class UserRepository:
                     UNIQUE (user_id, post_id),
                     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
                 );
+
+                CREATE TABLE IF NOT EXISTS user_notes (
+                    user_id INTEGER PRIMARY KEY,
+                    notes TEXT NOT NULL DEFAULT '',
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+                );
                 """
             )
 
@@ -342,3 +349,28 @@ class UserRepository:
             )
 
         return cursor.rowcount > 0
+
+    def get_notes(self, user_id: int) -> str:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT notes FROM user_notes WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()
+
+        return row["notes"] if row else ""
+
+    def update_notes(self, user_id: int, notes: str) -> str:
+        cleaned_notes = notes or ""
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO user_notes (user_id, notes)
+                VALUES (?, ?)
+                ON CONFLICT(user_id) DO UPDATE SET
+                    notes = excluded.notes,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (user_id, cleaned_notes),
+            )
+
+        return cleaned_notes

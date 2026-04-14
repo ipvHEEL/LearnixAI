@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import "./NewsFeed.css";
 
-const profileLinks = ["Моя страница", "Новости", "Граф интересов", "Сохраненное", "Лайкнутые", "Сообщения", "Друзья", "Сообщества", "Фотографии", "Музыка"];
+const profileLinks = ["Моя страница", "Новости", "Граф интересов", "Сохраненное", "Заметки", "Понравившиеся"];
 
 const sectionLinks = ["Новости", "Фотографии", "Подкасты", "Рекомендации", "Поиск"];
 
@@ -53,16 +53,16 @@ const toNewsItem = (article, index) => {
 };
 
 const graphNodesTemplate = [
-  { id: "ai", label: "AI", x: 50, y: 18 },
-  { id: "ml", label: "ML", x: 34, y: 33 },
+  { id: "python", label: "Python", x: 50, y: 18 },
+  { id: "forntend", label: "Forntend", x: 34, y: 33 },
   { id: "data", label: "Data", x: 66, y: 33 },
   { id: "startup", label: "Стартапы", x: 22, y: 50 },
-  { id: "design", label: "Дизайн", x: 42, y: 52 },
-  { id: "product", label: "Product", x: 58, y: 52 },
+  { id: "devops", label: "Devops", x: 42, y: 52 },
+  { id: "kubernetes", label: "Kuber", x: 58, y: 52 },
   { id: "science", label: "Наука", x: 77, y: 50 },
   { id: "robotics", label: "Робототехника", x: 36, y: 70 },
-  { id: "space", label: "Космос", x: 64, y: 70 },
-  { id: "future", label: "Будущее", x: 50, y: 84 },
+  { id: "dwh", label: "DWH", x: 64, y: 70 },
+  { id: "backend", label: "Backend", x: 50, y: 84 },
 ];
 
 const initialNodes = graphNodesTemplate.map((node) => ({ ...node }));
@@ -228,6 +228,8 @@ function NewsFeed({ initialView = "news" }) {
   const [activeView, setActiveView] = useState(initialView);
   const [selectedGraphInterests, setSelectedGraphInterests] = useState([]);
   const [lastViewedPost, setLastViewedPost] = useState(null);
+  const [notes, setNotes] = useState("");
+  const [savingNotes, setSavingNotes] = useState(false);
 
   const getAuthHeaders = (withJson = false) => {
     const token = localStorage.getItem("jwtToken");
@@ -259,9 +261,14 @@ function NewsFeed({ initialView = "news" }) {
       window.history.replaceState({}, "", "/saved");
     }
 
-    if (link === "Лайкнутые") {
+    if (link === "Понравившиеся") {
       setActiveView("liked");
       window.history.replaceState({}, "", "/liked");
+    }
+
+    if (link === "Заметки") {
+      setActiveView("notes");
+      window.history.replaceState({}, "", "/notes");
     }
   };
 
@@ -282,6 +289,9 @@ function NewsFeed({ initialView = "news" }) {
           headers: authHeaders,
         }),
         likedPosts: fetch("http://127.0.0.1:8000/liked-posts", {
+          headers: authHeaders,
+        }),
+        notes: fetch("http://127.0.0.1:8000/notes", {
           headers: authHeaders,
         }),
       };
@@ -391,6 +401,14 @@ function NewsFeed({ initialView = "news" }) {
         });
       } else if (activeView === "liked") {
         setError("Не удалось загрузить лайкнутые посты");
+      }
+
+      const notesRes = responsesByKey.notes;
+      if (notesRes?.ok) {
+        const notesData = await notesRes.json();
+        setNotes(notesData.notes ?? "");
+      } else if (activeView === "notes") {
+        setError("Не удалось загрузить заметки");
       }
     } catch (fetchError) {
       console.error(fetchError);
@@ -635,6 +653,39 @@ function NewsFeed({ initialView = "news" }) {
     }
   };
 
+  const handleSaveNotes = async () => {
+    setSavingNotes(true);
+    setError("");
+    try {
+      const res = await fetch("http://127.0.0.1:8000/notes", {
+        method: "PUT",
+        headers: getAuthHeaders(true),
+        body: JSON.stringify({ notes }),
+      });
+
+      if (!res.ok) {
+        if (res.status === 401) {
+          localStorage.removeItem("jwtToken");
+          localStorage.removeItem("userId");
+          window.location.href = "/";
+          return;
+        }
+        throw new Error("Не удалось сохранить заметки");
+      }
+    } catch (saveError) {
+      console.error(saveError);
+      if (saveError.message === "NO_AUTH_TOKEN") {
+        localStorage.removeItem("jwtToken");
+        localStorage.removeItem("userId");
+        window.location.href = "/";
+        return;
+      }
+      setError("Не удалось сохранить заметки");
+    } finally {
+      setSavingNotes(false);
+    }
+  };
+
   return (
     <main className="news-feed-page">
       <div className="news-layout">
@@ -642,7 +693,15 @@ function NewsFeed({ initialView = "news" }) {
           {profileLinks.map((link) => (
             <button
               key={link}
-              className={`panel-link ${(activeView === "news" && link === "Новости") || (activeView === "graph" && link === "Граф интересов") || (activeView === "saved" && link === "Сохраненное") || (activeView === "liked" && link === "Лайкнутые") ? "active" : ""}`}
+              className={`panel-link ${
+                (activeView === "news" && link === "Новости") ||
+                (activeView === "graph" && link === "Граф интересов") ||
+                (activeView === "saved" && link === "Сохраненное") ||
+                (activeView === "notes" && link === "Заметки") ||
+                (activeView === "liked" && link === "Понравившиеся")
+                  ? "active"
+                  : ""
+              }`}
               type="button"
               onClick={() => handleNavigationClick(link)}
             >
@@ -653,7 +712,17 @@ function NewsFeed({ initialView = "news" }) {
 
         <section className="news-main" aria-label="Лента новостей в стиле TikTok">
           <header className="news-feed-header">
-            <h1>{activeView === "news" ? "Лента новостей" : activeView === "graph" ? "Граф интересов" : activeView === "saved" ? "Сохраненное" : "Лайкнутые"}</h1>
+            <h1>
+              {activeView === "news"
+                ? "Лента новостей"
+                : activeView === "graph"
+                  ? "Граф интересов"
+                  : activeView === "saved"
+                    ? "Сохраненное"
+                    : activeView === "notes"
+                      ? "Заметки"
+                      : "Понравившиеся"}
+            </h1>
             <p>
               {activeView === "news"
                 ? "Свайпай вверх/вниз или прокручивай колесом мыши"
@@ -661,11 +730,14 @@ function NewsFeed({ initialView = "news" }) {
                   ? "Полноразмерное окно графа, сопоставимое по размеру с лентой"
                   : activeView === "saved"
                     ? "Посты, которые вы добавили в сохраненное"
-                    : "Посты, которым вы поставили лайк"}
+                    : activeView === "notes"
+                      ? "Личные заметки пользователя с сохранением в базе"
+                      : "Посты, которым вы поставили лайк"}
             </p>
             {activeView === "news" && <span className="news-feed-counter">Реакций: {totalLikes}</span>}
             {activeView === "saved" && <span className="news-feed-counter">Сохранено: {savedNews.length}</span>}
             {activeView === "liked" && <span className="news-feed-counter">Лайкнуто: {likedNews.length}</span>}
+            {activeView === "notes" && <span className="news-feed-counter">Символов: {notes.length}</span>}
             {activeView === "news" && lastViewedPost?.post_url && (
               <a className="last-viewed-link" href={lastViewedPost.post_url} target="_blank" rel="noreferrer">
                 Продолжить: {lastViewedPost.post_title ?? "Последний просмотренный пост"}
@@ -873,6 +945,27 @@ function NewsFeed({ initialView = "news" }) {
                 </div>
               )}
             </>
+          )}
+
+          {activeView === "notes" && (
+            <section className="notes-panel" aria-label="Личные заметки">
+              {loading && <p className="news-state">Загрузка заметок...</p>}
+              {!loading && (
+                <>
+                  {error && <p className="news-state news-state-error">{error}</p>}
+                  <textarea
+                    className="notes-textarea"
+                    value={notes}
+                    onChange={(event) => setNotes(event.target.value)}
+                    placeholder="Оставьте здесь свои мысли..."
+                    rows={18}
+                  />
+                  <button type="button" className="notes-save-button" onClick={handleSaveNotes} disabled={savingNotes}>
+                    {savingNotes ? "Сохранение..." : "Сохранить заметки"}
+                  </button>
+                </>
+              )}
+            </section>
           )}
         </section>
 

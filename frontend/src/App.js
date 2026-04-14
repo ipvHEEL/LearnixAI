@@ -5,8 +5,22 @@ import NewsFeed from "./NewsFeed";
 
 function App() {
   const currentPath = window.location.pathname;
-  const isNewsPage = currentPath === "/news" || currentPath === "/graph" || currentPath === "/saved" || currentPath === "/liked";
-  const initialView = currentPath === "/graph" ? "graph" : currentPath === "/saved" ? "saved" : currentPath === "/liked" ? "liked" : "news";
+  const isNewsPage =
+    currentPath === "/news" ||
+    currentPath === "/graph" ||
+    currentPath === "/saved" ||
+    currentPath === "/liked" ||
+    currentPath === "/notes";
+  const initialView =
+    currentPath === "/graph"
+      ? "graph"
+      : currentPath === "/saved"
+        ? "saved"
+        : currentPath === "/liked"
+          ? "liked"
+          : currentPath === "/notes"
+            ? "notes"
+            : "news";
 
   return (
     <>
