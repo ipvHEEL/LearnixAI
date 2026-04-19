@@ -67,10 +67,10 @@ function LoginForm() {
   return (
     <div className="container">
       <div className="form-container">
-        <h1>{isLogin ? "Login" : "Sign Up"}</h1>
+        <h1>{isLogin ? "Вход" : "Регистрация"}</h1>
 
         <form onSubmit={handleSubmit}>
-          <label>Username</label>
+          <label>Имя пользователя</label>
           <input
             type="text"
             name="username"
@@ -81,7 +81,7 @@ function LoginForm() {
 
           {!isLogin && (
             <>
-              <label>Email</label>
+              <label>Электронная почта</label>
               <input
                 type="email"
                 name="email"
@@ -92,7 +92,7 @@ function LoginForm() {
             </>
           )}
 
-          <label>Password</label>
+          <label>Пароль</label>
           <input
             type="password"
             name="password"
@@ -105,12 +105,12 @@ function LoginForm() {
           {error && <p style={{ color: "red", marginTop: "10px" }}>{error}</p>}
 
           <button type="submit" disabled={loading}>
-            {loading ? "Please wait..." : isLogin ? "Login" : "Sign Up"}
+            {loading ? "Пожалуйста, подождите..." : isLogin ? "Войти" : "Зарегистрироваться"}
           </button>
         </form>
 
         <p style={{ marginTop: "15px", textAlign: "center" }}>
-          {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
+          {isLogin ? "Нет аккаунта?" : "Уже есть аккаунт?"}{" "}
           <button
             type="button"
             onClick={() => {
@@ -124,7 +124,7 @@ function LoginForm() {
               cursor: "pointer",
             }}
           >
-            {isLogin ? "Sign Up" : "Login"}
+            {isLogin ? "Зарегистрироваться" : "Войти"}
           </button>
         </p>
       </div>
