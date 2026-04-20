@@ -230,6 +230,14 @@ function NewsFeed({ initialView = "news" }) {
   const [lastViewedPost, setLastViewedPost] = useState(null);
   const [notes, setNotes] = useState("");
   const [savingNotes, setSavingNotes] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    firstName: "",
+    lastName: "",
+    country: "",
+    city: "",
+  });
+  const [profileInterestsInput, setProfileInterestsInput] = useState("");
+  const [savingProfile, setSavingProfile] = useState(false);
 
   const getAuthHeaders = (withJson = false) => {
     const token = localStorage.getItem("jwtToken");
@@ -246,6 +254,11 @@ function NewsFeed({ initialView = "news" }) {
   };
 
   const handleNavigationClick = (link) => {
+    if (link === "Моя страница") {
+      setActiveView("profile");
+      window.history.replaceState({}, "", "/profile");
+    }
+
     if (link === "Новости") {
       setActiveView("news");
       window.history.replaceState({}, "", "/news");
@@ -279,6 +292,9 @@ function NewsFeed({ initialView = "news" }) {
     try {
       const authHeaders = getAuthHeaders();
       const requestMap = {
+        profile: fetch("http://127.0.0.1:8000/profile", {
+          headers: authHeaders,
+        }),
         interests: fetch("http://127.0.0.1:8000/interests", {
           headers: authHeaders,
         }),
@@ -326,6 +342,18 @@ function NewsFeed({ initialView = "news" }) {
       if (interestsRes?.ok) {
         const interestsData = await interestsRes.json();
         setInterestsInput((interestsData.interests ?? []).join(", "));
+      }
+
+      const profileRes = responsesByKey.profile;
+      if (profileRes?.ok) {
+        const profileData = await profileRes.json();
+        setProfileForm({
+          firstName: profileData.first_name ?? "",
+          lastName: profileData.last_name ?? "",
+          country: profileData.country ?? "",
+          city: profileData.city ?? "",
+        });
+        setProfileInterestsInput((profileData.interests ?? []).join(", "));
       }
 
       const lastViewedRes = responsesByKey.lastViewed;
@@ -686,6 +714,53 @@ function NewsFeed({ initialView = "news" }) {
     }
   };
 
+  const handleSaveProfile = async () => {
+    setSavingProfile(true);
+    setError("");
+    try {
+      const parsedInterests = profileInterestsInput
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+      const res = await fetch("http://127.0.0.1:8000/profile", {
+        method: "PUT",
+        headers: getAuthHeaders(true),
+        body: JSON.stringify({
+          first_name: profileForm.firstName,
+          last_name: profileForm.lastName,
+          country: profileForm.country,
+          city: profileForm.city,
+          interests: parsedInterests,
+        }),
+      });
+
+      if (!res.ok) {
+        if (res.status === 401) {
+          localStorage.removeItem("jwtToken");
+          localStorage.removeItem("userId");
+          window.location.href = "/";
+          return;
+        }
+        throw new Error("Не удалось сохранить профиль");
+      }
+
+      setInterestsInput(parsedInterests.join(", "));
+      await loadNewsAndInterests();
+    } catch (saveError) {
+      console.error(saveError);
+      if (saveError.message === "NO_AUTH_TOKEN") {
+        localStorage.removeItem("jwtToken");
+        localStorage.removeItem("userId");
+        window.location.href = "/";
+        return;
+      }
+      setError("Не удалось сохранить профиль пользователя");
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
   return (
     <main className="news-feed-page">
       <div className="news-layout">
@@ -695,6 +770,7 @@ function NewsFeed({ initialView = "news" }) {
               key={link}
               className={`panel-link ${
                 (activeView === "news" && link === "Новости") ||
+                (activeView === "profile" && link === "Моя страница") ||
                 (activeView === "graph" && link === "Граф интересов") ||
                 (activeView === "saved" && link === "Сохраненное") ||
                 (activeView === "notes" && link === "Заметки") ||
@@ -715,6 +791,8 @@ function NewsFeed({ initialView = "news" }) {
             <h1>
               {activeView === "news"
                 ? "Лента новостей"
+                : activeView === "profile"
+                  ? "Профиль пользователя"
                 : activeView === "graph"
                   ? "Граф интересов"
                   : activeView === "saved"
@@ -726,6 +804,8 @@ function NewsFeed({ initialView = "news" }) {
             <p>
               {activeView === "news"
                 ? "Свайпай вверх/вниз или прокручивай колесом мыши"
+                : activeView === "profile"
+                  ? "Укажите фамилию и имя, страну/город и сферу научных или профессиональных интересов"
                 : activeView === "graph"
                   ? "Полноразмерное окно графа, сопоставимое по размеру с лентой"
                   : activeView === "saved"
@@ -744,6 +824,62 @@ function NewsFeed({ initialView = "news" }) {
               </a>
             )}
           </header>
+
+          {activeView === "profile" && (
+            <section className="notes-panel" aria-label="Профиль пользователя">
+              {error && <p className="news-state news-state-error">{error}</p>}
+              <div className="profile-grid">
+                <label>
+                  Имя
+                  <input
+                    type="text"
+                    value={profileForm.firstName}
+                    onChange={(event) => setProfileForm((prev) => ({ ...prev, firstName: event.target.value }))}
+                    placeholder="Введите имя"
+                  />
+                </label>
+                <label>
+                  Фамилия
+                  <input
+                    type="text"
+                    value={profileForm.lastName}
+                    onChange={(event) => setProfileForm((prev) => ({ ...prev, lastName: event.target.value }))}
+                    placeholder="Введите фамилию"
+                  />
+                </label>
+                <label>
+                  Страна
+                  <input
+                    type="text"
+                    value={profileForm.country}
+                    onChange={(event) => setProfileForm((prev) => ({ ...prev, country: event.target.value }))}
+                    placeholder="Например, Россия"
+                  />
+                </label>
+                <label>
+                  Город
+                  <input
+                    type="text"
+                    value={profileForm.city}
+                    onChange={(event) => setProfileForm((prev) => ({ ...prev, city: event.target.value }))}
+                    placeholder="Например, Казань"
+                  />
+                </label>
+              </div>
+              <label style={{ display: "block", marginTop: "12px" }}>
+                Сфера научных/профессиональных интересов
+                <textarea
+                  value={profileInterestsInput}
+                  onChange={(event) => setProfileInterestsInput(event.target.value)}
+                  placeholder="Например: ML, биоинформатика, DevOps"
+                  rows={4}
+                />
+              </label>
+              <button type="button" className="notes-save-button" onClick={handleSaveProfile} disabled={savingProfile}>
+                {savingProfile ? "Сохранение..." : "Сохранить профиль"}
+              </button>
+            </section>
+          )}
 
           {activeView === "news" && loading && <p className="news-state">Загрузка новостей...</p>}
           {activeView === "news" && error && <p className="news-state news-state-error">{error}</p>}

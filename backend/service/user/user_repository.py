@@ -1,5 +1,6 @@
 import sqlite3
 from pathlib import Path
+from datetime import datetime
 from typing import Optional
 
 from service.user.user import User
@@ -87,8 +88,23 @@ class UserRepository:
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
                 );
+
+
+                CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                    token TEXT PRIMARY KEY,
+                    user_id INTEGER NOT NULL,
+                    expires_at TIMESTAMP NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+                );
                 """
             )
+            columns = {
+                row["name"]
+                for row in conn.execute("PRAGMA table_info(user_profile)").fetchall()
+            }
+            if "country" not in columns:
+                conn.execute("ALTER TABLE user_profile ADD COLUMN country TEXT")
 
     def create_user(self, user_name: str, email: str, password_hash: str) -> User:
         with self._connect() as conn:
@@ -374,3 +390,113 @@ class UserRepository:
             )
 
         return cleaned_notes
+
+    def get_profile(self, user_id: int) -> dict:
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT first_name, last_name, country, city
+                FROM user_profile
+                WHERE user_id = ?
+                """,
+                (user_id,),
+            ).fetchone()
+
+            interests = [
+                item["interest"]
+                for item in conn.execute(
+                    "SELECT interest FROM user_interests WHERE user_id = ? ORDER BY interest",
+                    (user_id,),
+                ).fetchall()
+            ]
+
+        return {
+            "first_name": row["first_name"] if row else "",
+            "last_name": row["last_name"] if row else "",
+            "country": row["country"] if row else "",
+            "city": row["city"] if row else "",
+            "interests": interests,
+        }
+
+    def update_profile(
+        self,
+        user_id: int,
+        first_name: str,
+        last_name: str,
+        country: str,
+        city: str,
+        interests: list[str],
+    ) -> dict:
+        cleaned_first_name = first_name.strip()
+        cleaned_last_name = last_name.strip()
+        cleaned_country = country.strip()
+        cleaned_city = city.strip()
+
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO user_profile (user_id, first_name, last_name, country, city)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(user_id) DO UPDATE SET
+                    first_name = excluded.first_name,
+                    last_name = excluded.last_name,
+                    country = excluded.country,
+                    city = excluded.city
+                """,
+                (user_id, cleaned_first_name, cleaned_last_name, cleaned_country, cleaned_city),
+            )
+
+        updated_interests = self.update_interests(user_id, interests)
+        return {
+            "first_name": cleaned_first_name,
+            "last_name": cleaned_last_name,
+            "country": cleaned_country,
+            "city": cleaned_city,
+            "interests": updated_interests,
+        }
+
+
+    def get_user_by_email(self, email: str) -> Optional[User]:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT user_id FROM users WHERE email = ?",
+                (email,),
+            ).fetchone()
+
+        if row is None:
+            return None
+
+        return self.get_user_by_id(row["user_id"])
+
+    def update_password_hash(self, user_id: int, password_hash: str) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE users SET password_hash = ? WHERE user_id = ?",
+                (password_hash, user_id),
+            )
+
+    def create_password_reset_token(self, user_id: int, token: str, expires_at: datetime) -> None:
+        with self._connect() as conn:
+            conn.execute("DELETE FROM password_reset_tokens WHERE user_id = ?", (user_id,))
+            conn.execute(
+                "INSERT INTO password_reset_tokens (token, user_id, expires_at) VALUES (?, ?, ?)",
+                (token, user_id, expires_at.isoformat()),
+            )
+
+    def consume_password_reset_token(self, token: str) -> Optional[int]:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT user_id, expires_at FROM password_reset_tokens WHERE token = ?",
+                (token,),
+            ).fetchone()
+
+            if row is None:
+                return None
+
+            expires_at = datetime.fromisoformat(row["expires_at"])
+            if expires_at < datetime.utcnow():
+                conn.execute("DELETE FROM password_reset_tokens WHERE token = ?", (token,))
+                return None
+
+            conn.execute("DELETE FROM password_reset_tokens WHERE token = ?", (token,))
+            return int(row["user_id"])
