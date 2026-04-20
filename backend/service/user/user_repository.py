@@ -1,5 +1,6 @@
 import sqlite3
 from pathlib import Path
+from datetime import datetime
 from typing import Optional
 
 from service.user.user import User
@@ -85,6 +86,15 @@ class UserRepository:
                     user_id INTEGER PRIMARY KEY,
                     notes TEXT NOT NULL DEFAULT '',
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+                );
+
+
+                CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                    token TEXT PRIMARY KEY,
+                    user_id INTEGER NOT NULL,
+                    expires_at TIMESTAMP NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
                 );
                 """
@@ -374,3 +384,49 @@ class UserRepository:
             )
 
         return cleaned_notes
+
+
+    def get_user_by_email(self, email: str) -> Optional[User]:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT user_id FROM users WHERE email = ?",
+                (email,),
+            ).fetchone()
+
+        if row is None:
+            return None
+
+        return self.get_user_by_id(row["user_id"])
+
+    def update_password_hash(self, user_id: int, password_hash: str) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE users SET password_hash = ? WHERE user_id = ?",
+                (password_hash, user_id),
+            )
+
+    def create_password_reset_token(self, user_id: int, token: str, expires_at: datetime) -> None:
+        with self._connect() as conn:
+            conn.execute("DELETE FROM password_reset_tokens WHERE user_id = ?", (user_id,))
+            conn.execute(
+                "INSERT INTO password_reset_tokens (token, user_id, expires_at) VALUES (?, ?, ?)",
+                (token, user_id, expires_at.isoformat()),
+            )
+
+    def consume_password_reset_token(self, token: str) -> Optional[int]:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT user_id, expires_at FROM password_reset_tokens WHERE token = ?",
+                (token,),
+            ).fetchone()
+
+            if row is None:
+                return None
+
+            expires_at = datetime.fromisoformat(row["expires_at"])
+            if expires_at < datetime.utcnow():
+                conn.execute("DELETE FROM password_reset_tokens WHERE token = ?", (token,))
+                return None
+
+            conn.execute("DELETE FROM password_reset_tokens WHERE token = ?", (token,))
+            return int(row["user_id"])
