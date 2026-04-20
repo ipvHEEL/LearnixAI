@@ -42,6 +42,15 @@ class InterestsUpdateRequest(BaseModel):
     interests: list[str]
 
 
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+
+
+class PasswordResetConfirmRequest(BaseModel):
+    token: str
+    password: str = Field(min_length=6)
+
+
 class LastViewedPostRequest(BaseModel):
     post_id: str
     post_url: str | None = None
@@ -80,7 +89,7 @@ def _authorized_user(credentials: HTTPAuthorizationCredentials) -> object:
     token = credentials.credentials
     user = auth_service.get_user_by_valid_token(token)
     if user is None:
-        raise HTTPException(status_code=401, detail="Invalid JWT token")
+        raise HTTPException(status_code=401, detail="Недействительный JWT-токен")
     return user
 
 
@@ -88,7 +97,7 @@ def _authorized_user(credentials: HTTPAuthorizationCredentials) -> object:
 def register(data: RegisterRequest):
     user = auth_service.register(data.login, str(data.email), data.password)
     if user is None:
-        raise HTTPException(status_code=409, detail="User already exists")
+        raise HTTPException(status_code=409, detail="Пользователь уже существует")
     return {"user_id": user.user_id, "user_name": user.user_name, "email": user.email}
 
 
@@ -96,7 +105,7 @@ def register(data: RegisterRequest):
 def login(data: LoginRequest):
     login_data = auth_service.login_with_jwt(data.login, data.password)
     if login_data is None:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        raise HTTPException(status_code=401, detail="Неверный логин или пароль")
 
     user = login_data["user"]
     return {
@@ -106,6 +115,22 @@ def login(data: LoginRequest):
         "access_token": login_data["token"],
         "token_type": "Bearer",
     }
+
+
+
+
+@app.post("/password-reset/request")
+def request_password_reset(data: PasswordResetRequest):
+    auth_service.request_password_reset(str(data.email))
+    return {"status": "ok", "message": "Если пользователь с таким email существует, письмо отправлено."}
+
+
+@app.post("/password-reset/confirm")
+def confirm_password_reset(data: PasswordResetConfirmRequest):
+    changed = auth_service.reset_password(data.token, data.password)
+    if not changed:
+        raise HTTPException(status_code=400, detail="Недействительный или истёкший токен сброса")
+    return {"status": "ok", "message": "Пароль успешно обновлён"}
 
 
 @app.get("/news")
@@ -166,7 +191,7 @@ def save_last_viewed_post(
         },
     )
     if not stored:
-        raise HTTPException(status_code=503, detail="Session storage unavailable")
+        raise HTTPException(status_code=503, detail="Хранилище сессий недоступно")
     return {"status": "ok"}
 
 
@@ -230,7 +255,7 @@ def delete_saved_post(
     user = _authorized_user(credentials)
     deleted = auth_service.user_repository.delete_saved_post(user.user_id, post_id)
     if not deleted:
-        raise HTTPException(status_code=404, detail="Saved post not found")
+        raise HTTPException(status_code=404, detail="Сохранённый пост не найден")
     return {"status": "ok"}
 
 
@@ -282,7 +307,7 @@ def delete_liked_post(
     user = _authorized_user(credentials)
     deleted = auth_service.user_repository.delete_liked_post(user.user_id, post_id)
     if not deleted:
-        raise HTTPException(status_code=404, detail="Liked post not found")
+        raise HTTPException(status_code=404, detail="Лайкнутый пост не найден")
     return {"status": "ok"}
 
 
