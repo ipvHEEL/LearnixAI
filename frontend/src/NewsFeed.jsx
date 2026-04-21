@@ -3,7 +3,7 @@ import "./NewsFeed.css";
 
 const profileLinks = ["Моя страница", "Новости", "Граф интересов", "Сохраненное", "Заметки", "Понравившиеся"];
 
-const sectionLinks = ["Новости", "Фотографии", "Подкасты", "Рекомендации", "Поиск"];
+const sectionLinks = ["Новости", "Поиск"];
 
 const cardGradients = [
   "linear-gradient(180deg, #7a2ef7 0%, #820f85 56%, #280020 100%)",
