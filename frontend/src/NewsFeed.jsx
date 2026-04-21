@@ -3,7 +3,7 @@ import "./NewsFeed.css";
 
 const profileLinks = ["Моя страница", "Новости", "Граф интересов", "Сохраненное", "Заметки", "Понравившиеся"];
 
-const sectionLinks = ["Новости", "Фотографии", "Подкасты", "Рекомендации", "Поиск"];
+const sectionLinks = ["Новости", "Поиск"];
 
 const cardGradients = [
   "linear-gradient(180deg, #7a2ef7 0%, #820f85 56%, #280020 100%)",
@@ -54,7 +54,7 @@ const toNewsItem = (article, index) => {
 
 const graphNodesTemplate = [
   { id: "python", label: "Python", x: 50, y: 18 },
-  { id: "forntend", label: "Forntend", x: 34, y: 33 },
+  { id: "frontend", label: "Frontend", x: 34, y: 33 },
   { id: "data", label: "Data", x: 66, y: 33 },
   { id: "startup", label: "Стартапы", x: 22, y: 50 },
   { id: "devops", label: "Devops", x: 42, y: 52 },
