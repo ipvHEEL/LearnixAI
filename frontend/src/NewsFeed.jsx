@@ -230,6 +230,18 @@ function NewsFeed({ initialView = "news" }) {
   const [lastViewedPost, setLastViewedPost] = useState(null);
   const [notes, setNotes] = useState("");
   const [savingNotes, setSavingNotes] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    firstName: "",
+    lastName: "",
+    country: "",
+    city: "",
+    avatarImage: "",
+  });
+  const [profileInterestsInput, setProfileInterestsInput] = useState("");
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [searchInput, setSearchInput] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
 
   const getAuthHeaders = (withJson = false) => {
     const token = localStorage.getItem("jwtToken");
@@ -246,9 +258,19 @@ function NewsFeed({ initialView = "news" }) {
   };
 
   const handleNavigationClick = (link) => {
+    if (link === "Моя страница") {
+      setActiveView("profile");
+      window.history.replaceState({}, "", "/profile");
+    }
+
     if (link === "Новости") {
       setActiveView("news");
       window.history.replaceState({}, "", "/news");
+    }
+
+    if (link === "Поиск") {
+      setActiveView("search");
+      window.history.replaceState({}, "", "/search");
     }
 
     if (link === "Граф интересов") {
@@ -279,6 +301,9 @@ function NewsFeed({ initialView = "news" }) {
     try {
       const authHeaders = getAuthHeaders();
       const requestMap = {
+        profile: fetch("http://127.0.0.1:8000/profile", {
+          headers: authHeaders,
+        }),
         interests: fetch("http://127.0.0.1:8000/interests", {
           headers: authHeaders,
         }),
@@ -296,7 +321,7 @@ function NewsFeed({ initialView = "news" }) {
         }),
       };
 
-      if (activeView === "news") {
+      if (activeView === "news" || activeView === "search") {
         requestMap.news = fetch("http://127.0.0.1:8000/news", {
           headers: authHeaders,
         });
@@ -326,6 +351,19 @@ function NewsFeed({ initialView = "news" }) {
       if (interestsRes?.ok) {
         const interestsData = await interestsRes.json();
         setInterestsInput((interestsData.interests ?? []).join(", "));
+      }
+
+      const profileRes = responsesByKey.profile;
+      if (profileRes?.ok) {
+        const profileData = await profileRes.json();
+        setProfileForm({
+          firstName: profileData.first_name ?? "",
+          lastName: profileData.last_name ?? "",
+          country: profileData.country ?? "",
+          city: profileData.city ?? "",
+          avatarImage: profileData.avatar_image ?? "",
+        });
+        setProfileInterestsInput((profileData.interests ?? []).join(", "));
       }
 
       const lastViewedRes = responsesByKey.lastViewed;
@@ -362,7 +400,7 @@ function NewsFeed({ initialView = "news" }) {
         const data = await newsRes.json();
         const normalizedNews = (data.articles ?? []).map(toNewsItem);
         setNews(normalizedNews);
-      } else if (activeView === "news") {
+      } else if (activeView === "news" || activeView === "search") {
         setError("Не удалось получить новости с сервера");
       }
 
@@ -437,6 +475,19 @@ function NewsFeed({ initialView = "news" }) {
 
     return [...news].sort((a, b) => b.relevanceScore - a.relevanceScore);
   }, [news, interestingFirst]);
+
+  const searchResults = useMemo(() => {
+    const keyword = appliedSearch.trim().toLowerCase();
+    if (!keyword) {
+      return visibleNews;
+    }
+
+    return visibleNews.filter((item) =>
+      [item.title, item.summary, item.source, item.category]
+        .filter(Boolean)
+        .some((field) => field.toLowerCase().includes(keyword)),
+    );
+  }, [appliedSearch, visibleNews]);
 
   const savedNews = useMemo(
     () =>
@@ -686,6 +737,73 @@ function NewsFeed({ initialView = "news" }) {
     }
   };
 
+  const handleSaveProfile = async () => {
+    setSavingProfile(true);
+    setError("");
+    try {
+      const parsedInterests = profileInterestsInput
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+      const res = await fetch("http://127.0.0.1:8000/profile", {
+        method: "PUT",
+        headers: getAuthHeaders(true),
+        body: JSON.stringify({
+          first_name: profileForm.firstName,
+          last_name: profileForm.lastName,
+          country: profileForm.country,
+          city: profileForm.city,
+          interests: parsedInterests,
+          avatar_image: profileForm.avatarImage,
+        }),
+      });
+
+      if (!res.ok) {
+        if (res.status === 401) {
+          localStorage.removeItem("jwtToken");
+          localStorage.removeItem("userId");
+          window.location.href = "/";
+          return;
+        }
+        throw new Error("Не удалось сохранить профиль");
+      }
+
+      setInterestsInput(parsedInterests.join(", "));
+      await loadNewsAndInterests();
+      setIsProfileMenuOpen(false);
+    } catch (saveError) {
+      console.error(saveError);
+      if (saveError.message === "NO_AUTH_TOKEN") {
+        localStorage.removeItem("jwtToken");
+        localStorage.removeItem("userId");
+        window.location.href = "/";
+        return;
+      }
+      setError("Не удалось сохранить профиль пользователя");
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const handleAvatarUpload = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      setError("Можно загрузить только изображение");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setProfileForm((prev) => ({ ...prev, avatarImage: String(reader.result || "") }));
+    };
+    reader.readAsDataURL(file);
+  };
+
   return (
     <main className="news-feed-page">
       <div className="news-layout">
@@ -695,6 +813,7 @@ function NewsFeed({ initialView = "news" }) {
               key={link}
               className={`panel-link ${
                 (activeView === "news" && link === "Новости") ||
+                (activeView === "profile" && link === "Моя страница") ||
                 (activeView === "graph" && link === "Граф интересов") ||
                 (activeView === "saved" && link === "Сохраненное") ||
                 (activeView === "notes" && link === "Заметки") ||
@@ -711,46 +830,173 @@ function NewsFeed({ initialView = "news" }) {
         </aside>
 
         <section className="news-main" aria-label="Лента новостей в стиле TikTok">
-          <header className="news-feed-header">
-            <h1>
-              {activeView === "news"
-                ? "Лента новостей"
-                : activeView === "graph"
-                  ? "Граф интересов"
-                  : activeView === "saved"
-                    ? "Сохраненное"
-                    : activeView === "notes"
-                      ? "Заметки"
-                      : "Понравившиеся"}
-            </h1>
-            <p>
-              {activeView === "news"
-                ? "Свайпай вверх/вниз или прокручивай колесом мыши"
-                : activeView === "graph"
-                  ? "Полноразмерное окно графа, сопоставимое по размеру с лентой"
-                  : activeView === "saved"
-                    ? "Посты, которые вы добавили в сохраненное"
-                    : activeView === "notes"
-                      ? "Личные заметки пользователя с сохранением в базе"
-                      : "Посты, которым вы поставили лайк"}
-            </p>
-            {activeView === "news" && <span className="news-feed-counter">Реакций: {totalLikes}</span>}
-            {activeView === "saved" && <span className="news-feed-counter">Сохранено: {savedNews.length}</span>}
-            {activeView === "liked" && <span className="news-feed-counter">Лайкнуто: {likedNews.length}</span>}
-            {activeView === "notes" && <span className="news-feed-counter">Символов: {notes.length}</span>}
-            {activeView === "news" && lastViewedPost?.post_url && (
-              <a className="last-viewed-link" href={lastViewedPost.post_url} target="_blank" rel="noreferrer">
-                Продолжить: {lastViewedPost.post_title ?? "Последний просмотренный пост"}
-              </a>
-            )}
-          </header>
+          {activeView !== "profile" && (
+            <header className="news-feed-header">
+              <h1>
+                {activeView === "news"
+                  ? "Лента новостей"
+                  : activeView === "search"
+                    ? "Поиск по ключевым словам"
+                  : activeView === "graph"
+                    ? "Граф интересов"
+                    : activeView === "saved"
+                      ? "Сохраненное"
+                      : activeView === "notes"
+                        ? "Заметки"
+                        : "Понравившиеся"}
+              </h1>
+              <p>
+                {activeView === "news"
+                  ? "Свайпай вверх/вниз или прокручивай колесом мыши"
+                  : activeView === "search"
+                    ? "Введите ключевые слова и нажмите «Найти»"
+                  : activeView === "graph"
+                    ? "Полноразмерное окно графа, сопоставимое по размеру с лентой"
+                    : activeView === "saved"
+                      ? "Посты, которые вы добавили в сохраненное"
+                      : activeView === "notes"
+                        ? "Личные заметки пользователя с сохранением в базе"
+                        : "Посты, которым вы поставили лайк"}
+              </p>
+              {activeView === "news" && <span className="news-feed-counter">Реакций: {totalLikes}</span>}
+              {activeView === "search" && <span className="news-feed-counter">Найдено: {searchResults.length}</span>}
+              {activeView === "saved" && <span className="news-feed-counter">Сохранено: {savedNews.length}</span>}
+              {activeView === "liked" && <span className="news-feed-counter">Лайкнуто: {likedNews.length}</span>}
+              {activeView === "notes" && <span className="news-feed-counter">Символов: {notes.length}</span>}
+              {activeView === "news" && lastViewedPost?.post_url && (
+                <a className="last-viewed-link" href={lastViewedPost.post_url} target="_blank" rel="noreferrer">
+                  Продолжить: {lastViewedPost.post_title ?? "Последний просмотренный пост"}
+                </a>
+              )}
+            </header>
+          )}
 
-          {activeView === "news" && loading && <p className="news-state">Загрузка новостей...</p>}
-          {activeView === "news" && error && <p className="news-state news-state-error">{error}</p>}
+          {activeView === "profile" && (
+            <section className="profile-shell" aria-label="Профиль пользователя">
+              {error && <p className="news-state news-state-error">{error}</p>}
+              <div className="profile-cover" />
+              <div className="profile-main">
+                <div className="profile-avatar-wrap">
+                  {profileForm.avatarImage ? (
+                    <img src={profileForm.avatarImage} alt="Личное фото" className="profile-avatar-image" />
+                  ) : (
+                    <div className="profile-avatar-placeholder">Фото</div>
+                  )}
+                  <label className="profile-avatar-upload">
+                    + Фото
+                    <input type="file" accept="image/*" onChange={handleAvatarUpload} />
+                  </label>
+                </div>
 
-          {activeView === "news" && !loading && !error && (
+                <div className="profile-fields profile-summary">
+                  <div className="profile-title-row">
+                    <div>
+                      <h2>
+                        {`${profileForm.firstName || "Имя"} ${profileForm.lastName || "Фамилия"}`.trim()}
+                      </h2>
+                      <p>
+                        {[profileForm.country, profileForm.city].filter(Boolean).join(", ") || "Страна, Город"}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="profile-menu-toggle"
+                      onClick={() => setIsProfileMenuOpen((prev) => !prev)}
+                    >
+                      Контекстное меню
+                    </button>
+                  </div>
+                  <div className="profile-interests-display">
+                    {(profileInterestsInput || "Backend, Frontend, Python")
+                      .split(",")
+                      .map((item) => item.trim())
+                      .filter(Boolean)
+                      .map((interest) => (
+                        <span key={interest}>{interest}</span>
+                      ))}
+                  </div>
+                  {isProfileMenuOpen && (
+                    <div className="profile-context-menu">
+                      <div className="profile-grid">
+                        <label>
+                          Имя
+                          <input
+                            type="text"
+                            value={profileForm.firstName}
+                            onChange={(event) => setProfileForm((prev) => ({ ...prev, firstName: event.target.value }))}
+                            placeholder="Введите имя"
+                          />
+                        </label>
+                        <label>
+                          Фамилия
+                          <input
+                            type="text"
+                            value={profileForm.lastName}
+                            onChange={(event) => setProfileForm((prev) => ({ ...prev, lastName: event.target.value }))}
+                            placeholder="Введите фамилию"
+                          />
+                        </label>
+                        <label>
+                          Страна
+                          <input
+                            type="text"
+                            value={profileForm.country}
+                            onChange={(event) => setProfileForm((prev) => ({ ...prev, country: event.target.value }))}
+                            placeholder="Например, Россия"
+                          />
+                        </label>
+                        <label>
+                          Город
+                          <input
+                            type="text"
+                            value={profileForm.city}
+                            onChange={(event) => setProfileForm((prev) => ({ ...prev, city: event.target.value }))}
+                            placeholder="Например, Казань"
+                          />
+                        </label>
+                      </div>
+                      <label style={{ display: "block", marginTop: "12px" }}>
+                        Сфера научных/профессиональных интересов
+                        <textarea
+                          value={profileInterestsInput}
+                          onChange={(event) => setProfileInterestsInput(event.target.value)}
+                          placeholder="Например: ML, биоинформатика, DevOps"
+                          rows={4}
+                        />
+                      </label>
+                      <button type="button" className="notes-save-button profile-save-button" onClick={handleSaveProfile} disabled={savingProfile}>
+                        {savingProfile ? "Сохранение..." : "Сохранить профиль"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </section>
+          )}
+
+          {activeView === "search" && (
+            <div className="search-toolbar">
+              <input
+                type="text"
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
+                placeholder="Введите ключевые слова"
+              />
+              <button type="button" onClick={() => setAppliedSearch(searchInput)}>
+                🔍 Найти
+              </button>
+            </div>
+          )}
+
+          {(activeView === "news" || activeView === "search") && loading && <p className="news-state">Загрузка новостей...</p>}
+          {(activeView === "news" || activeView === "search") && error && <p className="news-state news-state-error">{error}</p>}
+          {activeView === "search" && !loading && !error && searchResults.length === 0 && (
+            <p className="news-state">По вашему запросу ничего не найдено.</p>
+          )}
+
+          {(activeView === "news" || activeView === "search") && !loading && !error && (
             <div className="news-feed">
-              {visibleNews.map((newsItem) => {
+              {(activeView === "search" ? searchResults : visibleNews).map((newsItem) => {
                 const currentLike = likes[newsItem.id] ?? 0;
                 const isSaved = Boolean(savedPosts[newsItem.id]);
 
@@ -973,7 +1219,12 @@ function NewsFeed({ initialView = "news" }) {
           <section className="nav-panel right-panel">
             <h3>Разделы</h3>
             {sectionLinks.map((link) => (
-              <button key={link} className="panel-link" type="button">
+              <button
+                key={link}
+                className={`panel-link ${activeView === "search" && link === "Поиск" ? "active" : ""}`}
+                type="button"
+                onClick={() => handleNavigationClick(link)}
+              >
                 {link}
               </button>
             ))}
