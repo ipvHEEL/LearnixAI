@@ -6,13 +6,19 @@ import NewsFeed from "./NewsFeed";
 function App() {
   const currentPath = window.location.pathname;
   const isNewsPage =
+    currentPath === "/profile" ||
     currentPath === "/news" ||
+    currentPath === "/search" ||
     currentPath === "/graph" ||
     currentPath === "/saved" ||
     currentPath === "/liked" ||
     currentPath === "/notes";
   const initialView =
-    currentPath === "/graph"
+    currentPath === "/profile"
+      ? "profile"
+      : currentPath === "/search"
+        ? "search"
+      : currentPath === "/graph"
       ? "graph"
       : currentPath === "/saved"
         ? "saved"
