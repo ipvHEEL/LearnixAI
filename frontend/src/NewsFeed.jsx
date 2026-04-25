@@ -5,6 +5,17 @@ const profileLinks = ["Моя страница", "Новости", "Граф и�
 
 const sectionLinks = ["Новости", "Поиск"];
 
+
+const buildActivityLevels = (count, seed) => {
+  const base = Math.max(1, count || 0);
+  return Array.from({ length: 140 }, (_, index) => {
+    const wave = Math.abs(Math.sin((index + 3) * 0.37 + seed));
+    const trend = ((index % 7) + 1) / 7;
+    const value = Math.round(((base % 9) + wave * 6 + trend * 3) % 10);
+    return Math.min(4, Math.floor(value / 2));
+  });
+};
+
 const cardGradients = [
   "linear-gradient(180deg, #7a2ef7 0%, #820f85 56%, #280020 100%)",
   "linear-gradient(180deg, #304ffe 0%, #4f6fe7 45%, #060f2e 100%)",
@@ -509,6 +520,37 @@ function NewsFeed({ initialView = "news" }) {
     [likedPosts],
   );
 
+  const profileDisplayName = `${profileForm.firstName || "Пользователь"} ${profileForm.lastName || "LearnixAI"}`.trim();
+  const profileLocation = [profileForm.country, profileForm.city].filter(Boolean).join(", ") || "Страна, Город";
+
+  const ownerStats = useMemo(
+    () => [
+      { label: "Реакции", value: totalLikes },
+      { label: "Лайкнутые", value: likedNews.length },
+      { label: "Сохранённые", value: savedNews.length },
+      { label: "Заметки", value: notes.trim().length },
+    ],
+    [likedNews.length, notes, savedNews.length, totalLikes],
+  );
+
+  const totalOwnerActions = useMemo(
+    () => ownerStats.reduce((acc, item) => acc + item.value, 0),
+    [ownerStats],
+  );
+
+  const activityHeatmap = useMemo(
+    () => buildActivityLevels(totalOwnerActions, likedNews.length + savedNews.length + 1),
+    [likedNews.length, savedNews.length, totalOwnerActions],
+  );
+
+  const activityWeeks = useMemo(() => {
+    const weeks = [];
+    for (let i = 0; i < activityHeatmap.length; i += 7) {
+      weeks.push(activityHeatmap.slice(i, i + 7));
+    }
+    return weeks;
+  }, [activityHeatmap]);
+
   const updateLike = (id, value) => {
     setLikes((prev) => ({ ...prev, [id]: value }));
   };
@@ -892,11 +934,11 @@ function NewsFeed({ initialView = "news" }) {
                     <div className="profile-title-row">
                       <div>
                         <h2>
-                          {`${profileForm.firstName || "Имя"} ${profileForm.lastName || "Фамилия"}`.trim()}
+                          {profileDisplayName}
                         </h2>
                         <p className="profile-role">Пользователь LearnixAI</p>
                         <p>
-                          {[profileForm.country, profileForm.city].filter(Boolean).join(", ") || "Страна, Город"}
+                          {profileLocation}
                         </p>
                       </div>
                       <button
@@ -911,7 +953,38 @@ function NewsFeed({ initialView = "news" }) {
                 </div>
 
                 <div className="profile-activity-card">
-                  <h3>Активность</h3>
+                  <h3>Активность владельца страницы</h3>
+                  <p className="profile-activity-subtitle">{totalOwnerActions} действий за последние 20 недель</p>
+
+                  <div className="profile-heatmap" role="img" aria-label="Тепловая карта активности пользователя">
+                    {activityWeeks.map((week, weekIndex) => (
+                      <div key={`week-${weekIndex}`} className="profile-heatmap-week">
+                        {week.map((level, dayIndex) => (
+                          <span key={`day-${weekIndex}-${dayIndex}`} className={`profile-heatmap-cell level-${level}`} />
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="profile-heatmap-legend">
+                    <span>Меньше</span>
+                    <div className="profile-heatmap-legend-scale">
+                      {[0, 1, 2, 3, 4].map((level) => (
+                        <span key={`legend-${level}`} className={`profile-heatmap-cell level-${level}`} />
+                      ))}
+                    </div>
+                    <span>Больше</span>
+                  </div>
+
+                  <div className="profile-owner-stats">
+                    {ownerStats.map((item) => (
+                      <div key={item.label} className="profile-owner-stat-card">
+                        <strong>{item.value}</strong>
+                        <span>{item.label}</span>
+                      </div>
+                    ))}
+                  </div>
+
                   <div className="profile-interests-display">
                     {(profileInterestsInput || "Backend, Frontend, Python")
                       .split(",")
