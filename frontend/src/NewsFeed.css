@@ -565,6 +565,7 @@
 
 .profile-summary {
   position: relative;
+  text-align: left;
 }
 
 .profile-title-row {
@@ -590,6 +591,7 @@
   margin: 8px 0 0;
   color: rgba(235, 242, 255, 0.86);
   font-size: 1.02rem;
+  text-align: left;
 }
 
 .profile-menu-toggle {
@@ -624,11 +626,96 @@
 }
 
 .profile-activity-card h3 {
-  margin: 0 0 10px;
+  margin: 0 0 8px;
   font-size: 1.1rem;
 }
 
+.profile-activity-subtitle {
+  margin: 0 0 14px;
+  color: rgba(221, 232, 255, 0.84);
+}
+
+.profile-heatmap {
+  display: flex;
+  gap: 4px;
+  padding: 14px;
+  border: 1px solid rgba(173, 198, 255, 0.2);
+  border-radius: 14px;
+  background: rgba(9, 14, 31, 0.62);
+  overflow-x: auto;
+}
+
+.profile-heatmap-week {
+  display: grid;
+  grid-template-rows: repeat(7, 12px);
+  gap: 4px;
+}
+
+.profile-heatmap-cell {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: rgba(38, 52, 90, 0.66);
+}
+
+.profile-heatmap-cell.level-1 {
+  background: rgba(57, 121, 89, 0.72);
+}
+
+.profile-heatmap-cell.level-2 {
+  background: rgba(44, 156, 91, 0.78);
+}
+
+.profile-heatmap-cell.level-3 {
+  background: rgba(37, 181, 108, 0.86);
+}
+
+.profile-heatmap-cell.level-4 {
+  background: rgba(90, 227, 131, 0.96);
+}
+
+.profile-heatmap-legend {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  color: rgba(221, 232, 255, 0.84);
+  font-size: 0.92rem;
+}
+
+.profile-heatmap-legend-scale {
+  display: flex;
+  gap: 6px;
+}
+
+.profile-owner-stats {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.profile-owner-stat-card {
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  border: 1px solid rgba(149, 174, 255, 0.25);
+  background: rgba(16, 25, 49, 0.75);
+  padding: 10px;
+}
+
+.profile-owner-stat-card strong {
+  font-size: 1.18rem;
+}
+
+.profile-owner-stat-card span {
+  font-size: 0.9rem;
+  color: rgba(221, 232, 255, 0.84);
+}
+
 .profile-interests-display {
+  margin-top: 12px;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -727,6 +814,10 @@
   .profile-activity-card {
     width: 100%;
     margin-left: 0;
+  }
+
+  .profile-owner-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .profile-title-row {
