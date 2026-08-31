@@ -108,8 +108,7 @@ def register(data: RegisterRequest):
     if user is None:
         raise HTTPException(status_code=409, detail="Пользователь уже существует")
     return {"user_id": user.user_id, "user_name": user.user_name, "email": user.email}
-
-
+#
 @app.post("/login")
 def login(data: LoginRequest):
     login_data = auth_service.login_with_jwt(data.login, data.password)
