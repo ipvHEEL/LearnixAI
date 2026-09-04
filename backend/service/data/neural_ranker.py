@@ -8,7 +8,7 @@ _model = SentenceTransformer("sentence-transformers/paraphrase-multilingual-Mini
 def rank_articles_nn(
     articles: List[Dict],
     interests: List[str],
-    top_k: int = 5
+    top_k: int = 6
 ) -> List[Dict]:
 
     if not articles:
@@ -17,6 +17,7 @@ def rank_articles_nn(
     texts = [a["full_text"] for a in articles]
 
     article_embeddings = _model.encode(texts, convert_to_tensor=True)
+    
     interest_embedding = _model.encode(" ".join(interests), convert_to_tensor=True)
 
     scores = util.cos_sim(interest_embedding, article_embeddings)[0]
