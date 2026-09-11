@@ -874,102 +874,114 @@ function NewsFeed({ initialView = "news" }) {
           {activeView === "profile" && (
             <section className="profile-shell" aria-label="Профиль пользователя">
               {error && <p className="news-state news-state-error">{error}</p>}
-              <div className="profile-cover" />
               <div className="profile-main">
-                <div className="profile-avatar-wrap">
-                  {profileForm.avatarImage ? (
-                    <img src={profileForm.avatarImage} alt="Личное фото" className="profile-avatar-image" />
-                  ) : (
-                    <div className="profile-avatar-placeholder">Фото</div>
-                  )}
-                  <label className="profile-avatar-upload">
-                    + Фото
-                    <input type="file" accept="image/*" onChange={handleAvatarUpload} />
-                  </label>
+                <div className="profile-top-row">
+                  <div className="profile-avatar-wrap">
+                    {profileForm.avatarImage ? (
+                      <img src={profileForm.avatarImage} alt="Личное фото" className="profile-avatar-image" />
+                    ) : (
+                      <div className="profile-avatar-placeholder">Фото</div>
+                    )}
+                    <label className="profile-avatar-upload">
+                      + Фото
+                      <input type="file" accept="image/*" onChange={handleAvatarUpload} />
+                    </label>
+                  </div>
+
+                  <div className="profile-fields profile-summary">
+                    <div className="profile-title-row">
+                      <div>
+                        <h2>
+                          {`${profileForm.firstName || "Имя"} ${profileForm.lastName || "Фамилия"}`.trim()}
+                        </h2>
+                        <p className="profile-role">Пользователь LearnixAI</p>
+                        <p>
+                          {[profileForm.country, profileForm.city].filter(Boolean).join(", ") || "Страна, Город"}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        className="profile-menu-toggle"
+                        onClick={() => setIsProfileMenuOpen((prev) => !prev)}
+                      >
+                        Редактировать
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="profile-fields profile-summary">
-                  <div className="profile-title-row">
-                    <div>
-                      <h2>
-                        {`${profileForm.firstName || "Имя"} ${profileForm.lastName || "Фамилия"}`.trim()}
-                      </h2>
-                      <p>
-                        {[profileForm.country, profileForm.city].filter(Boolean).join(", ") || "Страна, Город"}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      className="profile-menu-toggle"
-                      onClick={() => setIsProfileMenuOpen((prev) => !prev)}
-                    >
-                      Контекстное меню
-                    </button>
-                  </div>
+                <div className="profile-activity-card">
+                  <h3>Активность</h3>
                   <div className="profile-interests-display">
                     {(profileInterestsInput || "Backend, Frontend, Python")
                       .split(",")
                       .map((item) => item.trim())
                       .filter(Boolean)
+                      .slice(0, 6)
                       .map((interest) => (
                         <span key={interest}>{interest}</span>
                       ))}
                   </div>
-                  {isProfileMenuOpen && (
-                    <div className="profile-context-menu">
-                      <div className="profile-grid">
-                        <label>
-                          Имя
-                          <input
-                            type="text"
-                            value={profileForm.firstName}
-                            onChange={(event) => setProfileForm((prev) => ({ ...prev, firstName: event.target.value }))}
-                            placeholder="Введите имя"
-                          />
-                        </label>
-                        <label>
-                          Фамилия
-                          <input
-                            type="text"
-                            value={profileForm.lastName}
-                            onChange={(event) => setProfileForm((prev) => ({ ...prev, lastName: event.target.value }))}
-                            placeholder="Введите фамилию"
-                          />
-                        </label>
-                        <label>
-                          Страна
-                          <input
-                            type="text"
-                            value={profileForm.country}
-                            onChange={(event) => setProfileForm((prev) => ({ ...prev, country: event.target.value }))}
-                            placeholder="Например, Россия"
-                          />
-                        </label>
-                        <label>
-                          Город
-                          <input
-                            type="text"
-                            value={profileForm.city}
-                            onChange={(event) => setProfileForm((prev) => ({ ...prev, city: event.target.value }))}
-                            placeholder="Например, Казань"
-                          />
-                        </label>
-                      </div>
-                      <label style={{ display: "block", marginTop: "12px" }}>
-                        Сфера научных/профессиональных интересов
-                        <textarea
-                          value={profileInterestsInput}
-                          onChange={(event) => setProfileInterestsInput(event.target.value)}
-                          placeholder="Например: ML, биоинформатика, DevOps"
-                          rows={4}
+                </div>
+
+                <div className="profile-list-card">Бэкенд</div>
+                <div className="profile-list-card">Фронтенд</div>
+                <div className="profile-list-card">Data / AI</div>
+
+                {isProfileMenuOpen && (
+                  <div className="profile-context-menu">
+                    <div className="profile-grid">
+                      <label>
+                        Имя
+                        <input
+                          type="text"
+                          value={profileForm.firstName}
+                          onChange={(event) => setProfileForm((prev) => ({ ...prev, firstName: event.target.value }))}
+                          placeholder="Введите имя"
                         />
                       </label>
-                      <button type="button" className="notes-save-button profile-save-button" onClick={handleSaveProfile} disabled={savingProfile}>
-                        {savingProfile ? "Сохранение..." : "Сохранить профиль"}
-                      </button>
+                      <label>
+                        Фамилия
+                        <input
+                          type="text"
+                          value={profileForm.lastName}
+                          onChange={(event) => setProfileForm((prev) => ({ ...prev, lastName: event.target.value }))}
+                          placeholder="Введите фамилию"
+                        />
+                      </label>
+                      <label>
+                        Страна
+                        <input
+                          type="text"
+                          value={profileForm.country}
+                          onChange={(event) => setProfileForm((prev) => ({ ...prev, country: event.target.value }))}
+                          placeholder="Например, Россия"
+                        />
+                      </label>
+                      <label>
+                        Город
+                        <input
+                          type="text"
+                          value={profileForm.city}
+                          onChange={(event) => setProfileForm((prev) => ({ ...prev, city: event.target.value }))}
+                          placeholder="Например, Казань"
+                        />
+                      </label>
                     </div>
-                  )}
-                </div>
+                    <label style={{ display: "block", marginTop: "12px" }}>
+                      Сфера научных/профессиональных интересов
+                      <textarea
+                        value={profileInterestsInput}
+                        onChange={(event) => setProfileInterestsInput(event.target.value)}
+                        placeholder="Например: ML, биоинформатика, DevOps"
+                        rows={4}
+                      />
+                    </label>
+                    <button type="button" className="notes-save-button profile-save-button" onClick={handleSaveProfile} disabled={savingProfile}>
+                      {savingProfile ? "Сохранение..." : "Сохранить профиль"}
+                    </button>
+                  </div>
+                )}
               </div>
             </section>
           )}
